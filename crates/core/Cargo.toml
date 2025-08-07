@@ -1,0 +1,40 @@
+[package]
+name = "json-echo-core"
+version = "0.1.0"
+description = "A collection of utilities for working with Node.js projects from Rust applications"
+documentation = "https://docs.rs/sublime_standard_tools"
+readme = "README.md"
+keywords = ["nodejs", "npm", "package-manager", "command", "project"]
+categories = ["development-tools", "command-line-utilities"]
+
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+doctest = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Error handling
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+  "fs",
+  "io-util",
+  "process",
+  "rt",
+  "rt-multi-thread",
+  "sync",
+  "time",
+] }
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

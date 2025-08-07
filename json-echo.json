@@ -1,0 +1,44 @@
+{
+  "port": 3001,
+  "hostname": "localhost",
+  "routes": {
+    "/api/v1/health": {
+      "method": "GET",
+      "description": "Health check endpoint",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "timestamp": "{{timestamp}}"
+        }
+      }
+    },
+    "/api/v1/ping": {
+      "method": "GET",
+      "description": "Ping endpoint",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "response": "./ping-response.json"
+    },
+    "/api/v1/posts": {
+      "method": "GET",
+      "description": "Posts endpoint",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "response": "./posts-response.json"
+    },
+    "/api/v1/posts/:id": {
+      "method": "GET",
+      "description": "Get post by ID",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "response": "./posts-response.json"
+    }
+  }
+}

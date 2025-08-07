@@ -1,0 +1,25 @@
+[package]
+name = "json-echo-cli"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+axum = "0.8.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+json-echo-core = { path = "../core" }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "echo"
+path = "src/main.rs"

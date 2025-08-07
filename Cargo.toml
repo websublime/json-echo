@@ -1,0 +1,69 @@
+[workspace]
+resolver = "3"
+members = [ "crates/cli","crates/core"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["WebSublime"]
+edition = "2024"
+rust-version = "1.88.0"
+license = "MIT"
+repository = "https://github.com/websublime/json-echo"
+
+[workspace.dependencies]
+thiserror = "1.0.64"
+tokio = { version = "1.38.0", default-features = false }
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
+log = "0.4.20"
+
+[workspace.lints.rust]
+# Will be expanded as needed
+
+[workspace.lints.clippy]
+# Guidelines
+dbg_macro = "deny"
+print_stdout = "deny"
+#allow-dbg-in-tests = "allow"
+clone_on_ref_ptr = "deny"
+empty_drop = "deny"
+exit = "deny"
+filetype_is_file = "deny"
+get_unwrap = "deny"
+rc_buffer = "deny"
+rc_mutex = "deny"
+rest_pat_in_fully_bound_structs = "deny"
+unnecessary_safety_comment = "deny"
+pedantic = { level = "deny", priority = -1 }
+module_inception = "allow"
+module_name_repetitions = "allow"
+similar_names = "allow"
+missing_errors_doc = "allow"
+must_use_candidate = "allow"
+doc_markdown = "allow"
+missing_const_for_fn = "allow"
+needless_for_each = "allow"
+new_without_default = "allow"
+missing_panics_doc = "allow"
+inconsistent_struct_constructor = "allow"
+single_match = "allow"
+single_match_else = "allow"
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = "fat"
+opt-level = 3
+strip = "symbols"
+
+[profile.release-debug]
+debug = true
+inherits = "release"
+
+[profile.release-wasi]
+codegen-units = 16
+debug = 'full'
+inherits = "release"
+lto = "thin"
+opt-level = "z"
+strip = "none"
