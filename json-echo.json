@@ -1,4 +1,5 @@
 {
+  "$schema": "https://gist.githubusercontent.com/miguelramos/830619c25af97d27fc785c693e964c78/raw/03c58ea4100966711e2f2c0364cd6ae127631fe5/json-echo-schema.json",
   "port": 3001,
   "hostname": "localhost",
   "routes": {
@@ -11,7 +12,6 @@
       "response": {
         "status": 200,
         "body": {
-          "status": "ok",
           "timestamp": "{{timestamp}}"
         }
       }
@@ -22,7 +22,7 @@
       "headers": {
         "Content-Type": "application/json"
       },
-      "response": "./ping-response.json"
+      "response": "ping-response.json"
     },
     "/api/v1/posts": {
       "method": "GET",
@@ -30,15 +30,34 @@
       "headers": {
         "Content-Type": "application/json"
       },
-      "response": "./posts-response.json"
+      "response": "posts-response.json"
     },
-    "/api/v1/posts/:id": {
+    "/api/v1/posts/{id}": {
       "method": "GET",
       "description": "Get post by ID",
       "headers": {
         "Content-Type": "application/json"
       },
-      "response": "./posts-response.json"
+      "response": "posts-response.json"
+    },
+    "/api/v1/products": {
+      "method": "GET",
+      "results_field": "results",
+      "description": "Products endpoint",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "response": "products-response.json"
+    },
+    "/api/v1/products/{code}": {
+      "method": "GET",
+      "id_field": "code",
+      "results_field": "results",
+      "description": "Get product by code",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "response": "products-response.json"
     }
   }
 }
