@@ -1,0 +1,163 @@
+{
+  "status": 200,
+  "products": [
+    {
+      "product_id": 1,
+      "name": "MacBook Pro 16-inch",
+      "description": "Apple MacBook Pro with M2 Max chip",
+      "price": 2499.99,
+      "currency": "USD",
+      "category": "laptops",
+      "brand": "Apple",
+      "in_stock": true,
+      "stock_quantity": 15,
+      "sku": "MBP-16-M2MAX-512",
+      "images": [
+        "https://example.com/images/macbook-pro-16-1.jpg",
+        "https://example.com/images/macbook-pro-16-2.jpg"
+      ],
+      "specifications": {
+        "processor": "Apple M2 Max",
+        "memory": "32GB",
+        "storage": "512GB SSD",
+        "display": "16-inch Liquid Retina XDR",
+        "weight": "2.15 kg"
+      },
+      "created_at": "2024-01-15T09:30:00Z",
+      "updated_at": "2024-01-20T14:22:00Z"
+    },
+    {
+      "product_id": 2,
+      "name": "Dell XPS 13",
+      "description": "Ultra-portable laptop with InfinityEdge display",
+      "price": 1299.99,
+      "currency": "USD",
+      "category": "laptops",
+      "brand": "Dell",
+      "in_stock": true,
+      "stock_quantity": 8,
+      "sku": "DELL-XPS13-I7-16GB",
+      "images": [
+        "https://example.com/images/dell-xps-13-1.jpg",
+        "https://example.com/images/dell-xps-13-2.jpg"
+      ],
+      "specifications": {
+        "processor": "Intel Core i7-1360P",
+        "memory": "16GB LPDDR5",
+        "storage": "512GB PCIe SSD",
+        "display": "13.4-inch FHD+ InfinityEdge",
+        "weight": "1.24 kg"
+      },
+      "created_at": "2024-01-10T11:15:00Z",
+      "updated_at": "2024-01-18T16:45:00Z"
+    },
+    {
+      "product_id": 3,
+      "name": "iPhone 15 Pro",
+      "description": "Pro. Beyond.",
+      "price": 999.99,
+      "currency": "USD",
+      "category": "smartphones",
+      "brand": "Apple",
+      "in_stock": true,
+      "stock_quantity": 25,
+      "sku": "IPH15-PRO-128-TIT",
+      "images": [
+        "https://example.com/images/iphone-15-pro-1.jpg",
+        "https://example.com/images/iphone-15-pro-2.jpg"
+      ],
+      "specifications": {
+        "processor": "A17 Pro chip",
+        "memory": "8GB",
+        "storage": "128GB",
+        "display": "6.1-inch Super Retina XDR",
+        "weight": "187 g"
+      },
+      "created_at": "2024-01-05T08:00:00Z",
+      "updated_at": "2024-01-22T10:30:00Z"
+    },
+    {
+      "product_id": 4,
+      "name": "Samsung Galaxy S24 Ultra",
+      "description": "Galaxy AI is here",
+      "price": 1199.99,
+      "currency": "USD",
+      "category": "smartphones",
+      "brand": "Samsung",
+      "in_stock": false,
+      "stock_quantity": 0,
+      "sku": "SAM-S24U-256-BLK",
+      "images": [
+        "https://example.com/images/galaxy-s24-ultra-1.jpg",
+        "https://example.com/images/galaxy-s24-ultra-2.jpg"
+      ],
+      "specifications": {
+        "processor": "Snapdragon 8 Gen 3",
+        "memory": "12GB",
+        "storage": "256GB",
+        "display": "6.8-inch Dynamic AMOLED 2X",
+        "weight": "232 g"
+      },
+      "created_at": "2024-01-12T14:20:00Z",
+      "updated_at": "2024-01-21T09:15:00Z"
+    },
+    {
+      "product_id": 5,
+      "name": "Sony WH-1000XM5",
+      "description": "Industry-leading noise canceling headphones",
+      "price": 399.99,
+      "currency": "USD",
+      "category": "audio",
+      "brand": "Sony",
+      "in_stock": true,
+      "stock_quantity": 12,
+      "sku": "SONY-WH1000XM5-BLK",
+      "images": [
+        "https://example.com/images/sony-wh-1000xm5-1.jpg",
+        "https://example.com/images/sony-wh-1000xm5-2.jpg"
+      ],
+      "specifications": {
+        "type": "Over-ear",
+        "connectivity": "Bluetooth 5.2, 3.5mm",
+        "battery_life": "30 hours",
+        "noise_canceling": "Yes",
+        "weight": "250 g"
+      },
+      "created_at": "2024-01-08T12:45:00Z",
+      "updated_at": "2024-01-19T15:30:00Z"
+    },
+    {
+      "product_id": 6,
+      "name": "Logitech MX Master 3S",
+      "description": "Advanced wireless mouse for productivity",
+      "price": 99.99,
+      "currency": "USD",
+      "category": "accessories",
+      "brand": "Logitech",
+      "in_stock": true,
+      "stock_quantity": 30,
+      "sku": "LOG-MXM3S-GRY",
+      "images": [
+        "https://example.com/images/mx-master-3s-1.jpg",
+        "https://example.com/images/mx-master-3s-2.jpg"
+      ],
+      "specifications": {
+        "type": "Wireless mouse",
+        "connectivity": "Bluetooth, USB-A receiver",
+        "battery_life": "70 days",
+        "dpi": "8000 DPI",
+        "weight": "141 g"
+      },
+      "created_at": "2024-01-03T10:00:00Z",
+      "updated_at": "2024-01-17T13:20:00Z"
+    }
+  ],
+  "metadata": {
+    "total_products": 6,
+    "total_pages": 1,
+    "current_page": 1,
+    "per_page": 10,
+    "categories": ["laptops", "smartphones", "audio", "accessories"],
+    "brands": ["Apple", "Dell", "Samsung", "Sony", "Logitech"]
+  }
+}

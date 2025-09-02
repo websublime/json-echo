@@ -1,0 +1,122 @@
+{
+  "status": 200,
+  "body": {
+    "categories": [
+      {
+        "id": 1,
+        "name": "Laptops",
+        "slug": "laptops",
+        "description": "Portable computers for work and gaming",
+        "parent_id": null,
+        "image": "https://example.com/images/categories/laptops.jpg",
+        "product_count": 2,
+        "is_active": true,
+        "sort_order": 1,
+        "metadata": {
+          "seo_title": "Laptops - High Performance Computers",
+          "seo_description": "Discover our range of high-performance laptops for work and play",
+          "keywords": ["laptop", "computer", "portable", "notebook"]
+        },
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-20T10:30:00Z"
+      },
+      {
+        "id": 2,
+        "name": "Smartphones",
+        "slug": "smartphones",
+        "description": "Latest mobile phones with cutting-edge technology",
+        "parent_id": null,
+        "image": "https://example.com/images/categories/smartphones.jpg",
+        "product_count": 2,
+        "is_active": true,
+        "sort_order": 2,
+        "metadata": {
+          "seo_title": "Smartphones - Latest Mobile Technology",
+          "seo_description": "Explore our collection of premium smartphones with advanced features",
+          "keywords": ["smartphone", "mobile", "phone", "android", "ios"]
+        },
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-18T14:22:00Z"
+      },
+      {
+        "id": 3,
+        "name": "Audio",
+        "slug": "audio",
+        "description": "Premium headphones, speakers, and audio equipment",
+        "parent_id": null,
+        "image": "https://example.com/images/categories/audio.jpg",
+        "product_count": 1,
+        "is_active": true,
+        "sort_order": 3,
+        "metadata": {
+          "seo_title": "Audio Equipment - Premium Sound Experience",
+          "seo_description": "High-quality headphones, speakers, and audio accessories",
+          "keywords": ["headphones", "speakers", "audio", "sound", "music"]
+        },
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-15T16:45:00Z"
+      },
+      {
+        "id": 4,
+        "name": "Accessories",
+        "slug": "accessories",
+        "description": "Computer and mobile accessories to enhance your experience",
+        "parent_id": null,
+        "image": "https://example.com/images/categories/accessories.jpg",
+        "product_count": 1,
+        "is_active": true,
+        "sort_order": 4,
+        "metadata": {
+          "seo_title": "Tech Accessories - Enhance Your Devices",
+          "seo_description": "Quality accessories for computers, phones, and other devices",
+          "keywords": ["accessories", "mouse", "keyboard", "charger", "case"]
+        },
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-12T11:20:00Z"
+      },
+      {
+        "id": 5,
+        "name": "Gaming Laptops",
+        "slug": "gaming-laptops",
+        "description": "High-performance laptops designed for gaming",
+        "parent_id": 1,
+        "image": "https://example.com/images/categories/gaming-laptops.jpg",
+        "product_count": 0,
+        "is_active": true,
+        "sort_order": 1,
+        "metadata": {
+          "seo_title": "Gaming Laptops - Ultimate Gaming Performance",
+          "seo_description": "Powerful gaming laptops with dedicated graphics and fast processors",
+          "keywords": ["gaming laptop", "gaming computer", "graphics", "performance"]
+        },
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-10T09:15:00Z"
+      },
+      {
+        "id": 6,
+        "name": "Business Laptops",
+        "slug": "business-laptops",
+        "description": "Professional laptops for business and productivity",
+        "parent_id": 1,
+        "image": "https://example.com/images/categories/business-laptops.jpg",
+        "product_count": 2,
+        "is_active": true,
+        "sort_order": 2,
+        "metadata": {
+          "seo_title": "Business Laptops - Professional Computing",
+          "seo_description": "Reliable business laptops for professional work and productivity",
+          "keywords": ["business laptop", "professional", "productivity", "enterprise"]
+        },
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-14T13:40:00Z"
+      }
+    ],
+    "metadata": {
+      "total_categories": 6,
+      "root_categories": 4,
+      "subcategories": 2,
+      "active_categories": 6,
+      "last_updated": "2024-01-20T10:30:00Z"
+    }
+  }
+}
