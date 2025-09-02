@@ -1,0 +1,37 @@
+{
+  "port": 8080,
+  "hostname": "0.0.0.0",
+  "routes": {
+    "/api/products": {
+      "method": "GET",
+      "description": "Product catalog with external data",
+      "id_field": "product_id",
+      "results_field": "products",
+      "response": "data/products.json"
+    },
+    "/api/products/{id}": {
+      "method": "GET",
+      "description": "Get product by ID from external file",
+      "id_field": "product_id",
+      "results_field": "products",
+      "response": "data/products.json"
+    },
+    "/api/categories": {
+      "method": "GET",
+      "description": "Product categories",
+      "response": "data/categories.json"
+    },
+    "/api/orders": {
+      "method": "GET",
+      "description": "Customer orders",
+      "id_field": "order_id",
+      "response": "data/orders.json"
+    },
+    "/api/orders/{id}": {
+      "method": "GET",
+      "description": "Get order by ID",
+      "id_field": "order_id",
+      "response": "data/orders.json"
+    }
+  }
+}

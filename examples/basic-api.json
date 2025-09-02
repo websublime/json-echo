@@ -1,0 +1,44 @@
+{
+  "port": 3001,
+  "hostname": "localhost",
+  "routes": {
+    "/api/users": {
+      "method": "GET",
+      "description": "Get all users",
+      "id_field": "id",
+      "response": {
+        "status": 200,
+        "body": [
+          { "id": 1, "name": "John Doe", "email": "john@example.com", "role": "admin" },
+          { "id": 2, "name": "Jane Smith", "email": "jane@example.com", "role": "user" },
+          { "id": 3, "name": "Bob Johnson", "email": "bob@example.com", "role": "user" }
+        ]
+      }
+    },
+    "/api/users/{id}": {
+      "method": "GET",
+      "description": "Get user by ID",
+      "id_field": "id",
+      "response": {
+        "status": 200,
+        "body": [
+          { "id": 1, "name": "John Doe", "email": "john@example.com", "role": "admin" },
+          { "id": 2, "name": "Jane Smith", "email": "jane@example.com", "role": "user" },
+          { "id": 3, "name": "Bob Johnson", "email": "bob@example.com", "role": "user" }
+        ]
+      }
+    },
+    "/api/health": {
+      "method": "GET",
+      "description": "Health check endpoint",
+      "response": {
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "timestamp": "2024-01-01T00:00:00Z",
+          "version": "1.0.0"
+        }
+      }
+    }
+  }
+}
