@@ -350,7 +350,9 @@ async fn get_handler(
             }
         }
 
-        return response(headers, StatusCode::OK, model.get_data());
+        let response_body = model.get_data();
+
+        return response(headers, StatusCode::OK, &response_body.as_value());
     }
 
     response(
@@ -370,15 +372,24 @@ fn response(headers: HeaderMap, status: StatusCode, data: &Value) -> Response {
                 info!("Response Status: {}", status);
                 return (status, headers, response_data).into_response();
             } else if header_type.starts_with("text/html") {
-                let response_data = axum::response::Html(data.to_string());
+                let string_data = match data {
+                    Value::String(value) => value,
+                    _ => "",
+                };
+
+                let response_data = axum::response::Html(string_data.to_string());
                 debug!("Model Data: {:?}", response_data);
                 info!("Response Status: {}", status);
                 return (status, headers, response_data).into_response();
             } else if header_type.starts_with("text/plain") {
-                let response_data = data.to_string();
-                debug!("Model Data: {:?}", response_data);
+                let response_data = match data {
+                    Value::String(value) => value,
+                    _ => "",
+                };
+
+                debug!("Model Data: {:?}", response_data.to_string());
                 info!("Response Status: {}", status);
-                return (status, headers, response_data).into_response();
+                return (status, headers, response_data.to_string()).into_response();
             }
         }
     }
