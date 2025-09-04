@@ -4,7 +4,6 @@ A powerful and flexible mock API server for rapid prototyping, testing, and deve
 
 ## 🚀 Features
 
-- **Zero Configuration Setup**: Get started with a single command
 - **JSON-Based Configuration**: Define routes and responses using intuitive JSON files
 - **Dynamic Route Handling**: Support for parameterized routes with flexible data querying
 - **CORS Support**: Built-in cross-origin resource sharing for web applications

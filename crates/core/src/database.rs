@@ -49,7 +49,7 @@ use std::collections::HashMap;
 
 use serde_json::{Map, Value, json};
 
-use crate::{ConfigRoute, ConfigRouteResponse};
+use crate::{ConfigRoute, ConfigRouteResponse, config::BodyResponse};
 
 /// An in-memory database that manages route configurations and their associated models.
 ///
@@ -205,7 +205,7 @@ impl Database {
                     crate::ConfigResponse::ConfigRouteResponse(response) => response.clone(),
                     _ => ConfigRouteResponse {
                         status: Some(200),
-                        body: Value::Object(Map::new()),
+                        body: BodyResponse::Value(Value::Object(Map::new())),
                     },
                 },
             };
@@ -472,16 +472,20 @@ impl Model {
     ///     _ => println!("Data is a simple value"),
     /// }
     /// ```
-    pub fn get_data(&self) -> &Value {
+    #[allow(clippy::collapsible_match)]
+    pub fn get_data(&self) -> BodyResponse {
         if let Some(results_field) = &self.results_field {
-            if let Value::Object(map) = &self.data.body {
-                if let Some(value) = map.get(results_field) {
-                    return value;
+            // Only if body is type Value
+            if let BodyResponse::Value(body) = &self.data.body {
+                if let Value::Object(map) = body {
+                    if let Some(value) = map.get(results_field) {
+                        return BodyResponse::Value(value.clone());
+                    }
                 }
             }
         }
 
-        &self.data.body
+        self.data.body.clone()
     }
 
     /// Returns the HTTP status code associated with this model's response.
@@ -603,29 +607,31 @@ impl Model {
     pub fn find_entry_by_hashmap(&self, map: HashMap<String, String>) -> Option<Value> {
         let id_field = self.get_id_field();
 
-        if let Value::Object(obj) = &self.get_data() {
-            for (key, value) in &map {
-                if let Some(val) = obj.get(&key.replace(':', "")) {
-                    if key.contains(id_field) && val.to_string().as_str() == value {
-                        return Some(val.clone());
-                    }
+        if let BodyResponse::Value(body) = &self.get_data() {
+            if let Value::Object(obj) = body {
+                for (key, value) in &map {
+                    if let Some(val) = obj.get(&key.replace(':', "")) {
+                        if key.contains(id_field) && val.to_string().as_str() == value {
+                            return Some(val.clone());
+                        }
 
-                    if *val == json!(value) {
-                        return Some(val.clone());
+                        if *val == json!(value) {
+                            return Some(val.clone());
+                        }
                     }
                 }
-            }
-        } else if let Value::Array(arr) = &self.get_data() {
-            for item in arr {
-                if let Value::Object(obj) = item {
-                    for (key, value) in &map {
-                        if let Some(val) = obj.get(&key.replace(':', "")) {
-                            if key.contains(id_field) && val.to_string().as_str() == value {
-                                return Some(item.clone());
-                            }
+            } else if let Value::Array(arr) = body {
+                for item in arr {
+                    if let Value::Object(obj) = item {
+                        for (key, value) in &map {
+                            if let Some(val) = obj.get(&key.replace(':', "")) {
+                                if key.contains(id_field) && val.to_string().as_str() == value {
+                                    return Some(item.clone());
+                                }
 
-                            if *val == json!(value.clone()) {
-                                return Some(item.clone());
+                                if *val == json!(value.clone()) {
+                                    return Some(item.clone());
+                                }
                             }
                         }
                     }
