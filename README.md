@@ -6,6 +6,7 @@ A powerful and flexible mock API server for rapid prototyping, testing, and deve
 
 - **JSON-Based Configuration**: Define routes and responses using intuitive JSON files
 - **Dynamic Route Handling**: Support for parameterized routes with flexible data querying
+- **Static File Serving**: Built-in static file serving for assets, images, and frontend files
 - **CORS Support**: Built-in cross-origin resource sharing for web applications
 - **Async Performance**: High-performance async server built with Tokio and Axum
 - **Type-Safe**: Written in Rust with comprehensive error handling
@@ -44,6 +45,8 @@ This creates a `json-echo.json` configuration file with default settings:
 {
   "port": 3001,
   "hostname": "localhost",
+  "static_folder": "public",
+  "static_route": "/static",
   "routes": {}
 }
 ```
@@ -56,6 +59,8 @@ Edit the `json-echo.json` file to define your mock API:
 {
   "port": 3001,
   "hostname": "localhost",
+  "static_folder": "public",
+  "static_route": "/static",
   "routes": {
     "/api/users": {
       "method": "GET",
@@ -132,6 +137,8 @@ echo serve
 {
   "port": 8080,
   "hostname": "0.0.0.0",
+  "static_folder": "assets",
+  "static_route": "/public",
   "routes": {
     "/api/products": {
       "method": "GET",
@@ -179,6 +186,8 @@ echo serve
 
 ```json
 {
+  "static_folder": "www",
+  "static_route": "/assets",
   "routes": {
     "/api/users/{id}": {
       "method": "GET",
@@ -198,6 +207,32 @@ echo serve
 }
 ```
 
+#### Static File Serving
+
+```json
+{
+  "port": 3001,
+  "hostname": "localhost",
+  "static_folder": "public",
+  "static_route": "/static",
+  "routes": {
+    "/api/data": {
+      "method": "GET",
+      "response": {
+        "status": 200,
+        "body": {"message": "API endpoint"}
+      }
+    }
+  }
+}
+```
+
+With this configuration:
+- Static files in the `public/` folder are served at `/static/*`
+- `public/index.html` becomes available at `http://localhost:3001/static/index.html`
+- `public/css/style.css` becomes available at `http://localhost:3001/static/css/style.css`
+- API routes continue to work normally
+
 ### API Examples
 
 Once your server is running, you can make requests:
@@ -211,7 +246,153 @@ curl http://localhost:3001/api/users/1
 
 # Health check
 curl http://localhost:3001/api/health
+
+# Access static files
+curl http://localhost:3001/static/index.html
+curl http://localhost:3001/static/css/style.css
+curl http://localhost:3001/static/images/logo.png
 ```
+
+## 📂 Static File Serving
+
+JSON Echo includes built-in static file serving capabilities, allowing you to serve assets, frontend applications, and other static content alongside your mock API endpoints.
+
+### Configuration
+
+Enable static file serving by adding two optional fields to your configuration:
+
+```json
+{
+  "port": 3001,
+  "hostname": "localhost",
+  "static_folder": "public",
+  "static_route": "/static",
+  "routes": {
+    "/api/users": {
+      "method": "GET",
+      "response": {"status": 200, "body": []}
+    }
+  }
+}
+```
+
+### Directory Structure
+
+With the above configuration, organize your files like this:
+
+```
+your-project/
+├── json-echo.json          # Configuration file
+├── public/                 # Static files folder
+│   ├── index.html         # Available at /static/index.html
+│   ├── css/
+│   │   └── style.css      # Available at /static/css/style.css
+│   ├── js/
+│   │   └── app.js         # Available at /static/js/app.js
+│   └── images/
+│       └── logo.png       # Available at /static/images/logo.png
+└── data/
+    └── users.json         # For API responses
+```
+
+### Use Cases
+
+#### Single Page Application (SPA)
+
+Serve a React, Vue, or Angular application with mock API:
+
+```json
+{
+  "port": 3000,
+  "static_folder": "dist",
+  "static_route": "/",
+  "routes": {
+    "/api/auth/login": {
+      "method": "POST",
+      "response": {
+        "status": 200,
+        "body": {"token": "mock-jwt-token", "user": {"id": 1, "name": "Demo User"}}
+      }
+    },
+    "/api/data": {
+      "method": "GET",
+      "response": "data/mock-data.json"
+    }
+  }
+}
+```
+
+#### Development Environment
+
+Mix static assets with API mocking during development:
+
+```json
+{
+  "static_folder": "assets",
+  "static_route": "/assets",
+  "routes": {
+    "/api/config": {
+      "response": {"apiUrl": "http://localhost:3001", "environment": "development"}
+    }
+  }
+}
+```
+
+#### Documentation Site
+
+Serve API documentation alongside mock endpoints:
+
+```json
+{
+  "static_folder": "docs",
+  "static_route": "/docs",
+  "routes": {
+    "/api/openapi": {
+      "response": "openapi.json"
+    }
+  }
+}
+```
+
+### Advanced Configuration
+
+#### Custom Route Paths
+
+```json
+{
+  "static_folder": "web",
+  "static_route": "/app",
+  "routes": {}
+}
+```
+
+Files in `web/` folder become available at `/app/*` URLs.
+
+#### Root Path Serving
+
+```json
+{
+  "static_folder": "build",
+  "static_route": "/",
+  "routes": {
+    "/api/*": "..."
+  }
+}
+```
+
+Serves files at the root path while API routes are still available.
+
+### File Type Support
+
+Static file serving supports all common file types:
+
+- **Web Assets**: `.html`, `.css`, `.js`, `.json`
+- **Images**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.ico`
+- **Fonts**: `.woff`, `.woff2`, `.ttf`, `.otf`
+- **Documents**: `.pdf`, `.txt`, `.md`
+- **Media**: `.mp4`, `.webm`, `.mp3`, `.wav`
+
+Content-Type headers are automatically set based on file extensions.
 
 ## 🏗️ Architecture
 
@@ -258,6 +439,8 @@ The `json-echo-cli` crate provides the user-facing command-line interface:
 |-------|------|---------|-------------|
 | `port` | number | `3001` | Port number for the HTTP server |
 | `hostname` | string | `"localhost"` | Hostname or IP address to bind to |
+| `static_folder` | string | `null` | Relative folder path to serve static files from |
+| `static_route` | string | `"/static"` | Base route path for serving static files |
 
 ### Route Configuration
 
@@ -292,6 +475,46 @@ echo --config examples/external-files.json serve
 echo --config my-custom-config.json serve
 ```
 
+### Static File Serving Examples
+
+```bash
+# Serve a Single Page Application
+echo --config spa-config.json serve
+
+# Development with assets
+echo --config dev-config.json serve
+
+# Documentation site
+echo --config docs-config.json serve
+```
+
+Example configurations:
+
+**spa-config.json** - Serve SPA at root:
+```json
+{
+  "port": 3000,
+  "static_folder": "dist",
+  "static_route": "/",
+  "routes": {
+    "/api/auth": {"response": {"token": "mock-token"}},
+    "/api/users": {"response": "data/users.json"}
+  }
+}
+```
+
+**dev-config.json** - Development setup:
+```json
+{
+  "static_folder": "public",
+  "static_route": "/assets",
+  "routes": {
+    "/api/config": {"response": {"env": "development"}},
+    "/api/data/{id}": {"response": "data/items.json"}
+  }
+}
+```
+
 ### Custom Logging
 
 ```bash
@@ -313,6 +536,8 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 COPY --from=builder /app/target/release/echo /usr/local/bin/
 COPY config.json /app/
+COPY public/ /app/public/
+COPY data/ /app/data/
 WORKDIR /app
 EXPOSE 3001
 CMD ["echo", "serve"]
@@ -346,10 +571,53 @@ curl -X GET http://localhost:3001/api/users/1
 # Test health check
 curl -X GET http://localhost:3001/api/health
 
+# Test static file serving
+curl -X GET http://localhost:3001/static/index.html
+curl -X GET http://localhost:3001/static/css/style.css
+curl -I http://localhost:3001/static/images/logo.png
+
 # Test CORS headers
 curl -X OPTIONS http://localhost:3001/api/users \
   -H "Origin: http://localhost:3000" \
   -H "Access-Control-Request-Method: GET"
+
+# Test static files with CORS
+curl -X OPTIONS http://localhost:3001/static/app.js \
+  -H "Origin: http://localhost:3000" \
+  -H "Access-Control-Request-Method: GET"
+```
+
+### Static File Testing
+
+Create a test directory structure:
+
+```bash
+mkdir -p public/{css,js,images}
+echo "<h1>Hello World</h1>" > public/index.html
+echo "body { margin: 0; }" > public/css/style.css
+echo "console.log('Hello');" > public/js/app.js
+```
+
+Test configuration:
+```json
+{
+  "static_folder": "public",
+  "static_route": "/static",
+  "routes": {
+    "/api/test": {"response": {"message": "API works"}}
+  }
+}
+```
+
+Verify both API and static content:
+```bash
+# Test API endpoint
+curl http://localhost:3001/api/test
+
+# Test static files
+curl http://localhost:3001/static/index.html
+curl http://localhost:3001/static/css/style.css
+curl http://localhost:3001/static/js/app.js
 ```
 
 ## 🤝 Contributing
@@ -382,12 +650,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 💡 Use Cases
 
-- **Frontend Development**: Mock backend APIs during frontend development
+- **Frontend Development**: Mock backend APIs and serve static assets during frontend development
 - **API Testing**: Create predictable responses for automated tests
-- **Prototyping**: Quickly prototype API designs without backend implementation
+- **Prototyping**: Quickly prototype API designs with static assets without full backend implementation
 - **Integration Testing**: Mock external services in integration test suites
-- **Demo Applications**: Provide realistic data for demos and presentations
-- **Development Workflows**: Support offline development and testing
+- **Demo Applications**: Provide realistic data and serve demo assets for presentations
+- **Development Workflows**: Support offline development and testing with both API and static content
+- **Single Page Applications**: Serve SPA files while providing mock API endpoints
+- **Asset Testing**: Test static asset delivery alongside API functionality
 
 ## 📞 Support
 
