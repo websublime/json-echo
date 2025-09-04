@@ -22,7 +22,9 @@ pub fn version() -> &'static str {
     VERSION
 }
 
-pub use config::{Config, ConfigManager, ConfigResponse, ConfigRoute, ConfigRouteResponse};
+pub use config::{
+    BodyResponse, Config, ConfigManager, ConfigResponse, ConfigRoute, ConfigRouteResponse,
+};
 pub use database::{Database, Model};
 pub use errors::{Error, FileSystemError, FileSystemResult};
 pub use filesystem::{FileSystemManager, PathUtils};
