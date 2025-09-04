@@ -43,15 +43,16 @@
 use axum::{
     Router,
     extract::{MatchedPath, Path, Query, Request, State},
-    http::{Method, StatusCode, Uri},
+    http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::get,
 };
 use json_echo_core::Database;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::sync::Arc;
 use std::{collections::HashMap, io::Error as IOError};
 use tower_http::cors::{Any, CorsLayer};
+use tracing::{debug, info};
 
 /// Application state container that holds shared data across request handlers.
 ///
@@ -114,6 +115,8 @@ struct AppState {
 /// # }
 /// ```
 pub async fn run_server(host: &str, port: &str, router: Router) -> Result<(), IOError> {
+    info!("Starting server at: http://{}:{}", host, port);
+
     let listener = tokio::net::TcpListener::bind(format!("{host}:{port}")).await?;
     axum::serve(listener, router).await?;
     Ok(())
@@ -162,6 +165,7 @@ pub async fn run_server(host: &str, port: &str, router: Router) -> Result<(), IO
 /// // Router is now ready to handle requests
 /// ```
 pub fn create_router(db: Database) -> Router {
+    info!("Getting models from config");
     // First get the models before moving db
     let models = db.get_models();
 
@@ -176,7 +180,10 @@ pub fn create_router(db: Database) -> Router {
         let route = route_config.unwrap();
 
         match route.method.as_deref() {
-            Some("GET") => router.route(model.get_identifier(), get(get_handler)),
+            Some("GET") => {
+                info!("[GET] route defined: {}", model.get_identifier());
+                router.route(model.get_identifier(), get(get_handler))
+            }
             _ => router,
         }
     });
@@ -293,8 +300,16 @@ async fn get_handler(
     req: Request,
 ) -> Response {
     let route_match = req.extensions().get::<MatchedPath>();
+    let uri_path = req.uri().path();
+
+    info!("[GET] request called: {uri_path}");
 
     if route_match.is_none() {
+        info!(
+            "Route [{uri_path}] not defined with status: {}",
+            StatusCode::NOT_FOUND
+        );
+
         return (
             StatusCode::NOT_FOUND,
             axum::Json(json!({"error": "Route is not defined"})),
@@ -304,21 +319,69 @@ async fn get_handler(
 
     let route_path = route_match.unwrap().as_str();
     let model = state.db.get_model(route_path);
+    let route = state.db.get_route(route_path);
+
+    debug!("Model: {:?}", model);
+    debug!("Route Config: {:?}", route);
+
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+
+    if let Some(route) = route {
+        if let Some(route_headers) = &route.headers {
+            for (key, value) in route_headers {
+                if let Ok(header_name) = key.parse::<HeaderName>() {
+                    if let Ok(header_value) = value.parse() {
+                        headers.insert(header_name, header_value);
+                    }
+                }
+            }
+        }
+    }
+
+    debug!("Headers Config: {:?}", headers);
 
     if let Some(model) = model {
         if !params.is_empty() {
             let model_data = model.find_entry_by_hashmap(params);
 
             if let Some(data) = model_data {
-                return (StatusCode::OK, axum::Json(data)).into_response();
+                return response(headers, StatusCode::OK, &data);
             }
         }
-        return (StatusCode::OK, axum::Json(model.get_data())).into_response();
+
+        return response(headers, StatusCode::OK, model.get_data());
     }
 
-    (
+    response(
+        headers,
         StatusCode::NOT_FOUND,
-        axum::Json(json!({"error": "Model not found"})),
+        &json!({"error": "Model not found"}),
     )
-        .into_response()
+}
+
+fn response(headers: HeaderMap, status: StatusCode, data: &Value) -> Response {
+    // Check header content type and use axum (Json, Form or simple text)
+    if let Some(content_type) = headers.get("content-type") {
+        if let Ok(header_type) = content_type.to_str() {
+            if header_type.starts_with("application/x-www-form-urlencoded") {
+                let response_data = axum::extract::Form(data.clone());
+                debug!("Model Data: {:?}", response_data);
+                info!("Response Status: {}", status);
+                return (status, headers, response_data).into_response();
+            } else if header_type.starts_with("text/html") {
+                let response_data = axum::response::Html(data.to_string());
+                debug!("Model Data: {:?}", response_data);
+                info!("Response Status: {}", status);
+                return (status, headers, response_data).into_response();
+            } else if header_type.starts_with("text/plain") {
+                let response_data = data.to_string();
+                debug!("Model Data: {:?}", response_data);
+                info!("Response Status: {}", status);
+                return (status, headers, response_data).into_response();
+            }
+        }
+    }
+
+    (status, headers, axum::Json(data)).into_response()
 }

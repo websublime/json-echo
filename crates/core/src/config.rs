@@ -325,6 +325,18 @@ impl Default for ConfigRoute {
     }
 }
 
+// TODO: Apply to body response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum BodyResponse {
+    /// A structured response configuration with status code and JSON body
+    Value(Value),
+    /// A string response, often used for file path references
+    String(String),
+    /// Alternative string representation for configuration flexibility
+    Str(String),
+}
+
 /// Structured response configuration with HTTP status and JSON body.
 ///
 /// The `ConfigRouteResponse` struct represents a complete HTTP response

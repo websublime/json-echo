@@ -76,6 +76,7 @@ use crate::{ConfigRoute, ConfigRouteResponse};
 /// let route_keys = db.get_routes();
 /// let models = db.get_models();
 /// ```
+#[derive(Debug, Clone)]
 pub struct Database {
     /// HashMap storing route configurations indexed by their string identifier
     pub(crate) routes: HashMap<String, ConfigRoute>,
@@ -117,6 +118,7 @@ pub struct Database {
 /// assert_eq!(model.get_identifier(), "users");
 /// assert_eq!(model.get_id_field(), "id");
 /// ```
+#[derive(Debug, Clone)]
 pub struct Model {
     /// The unique string identifier for this model
     pub(crate) identifier: String,

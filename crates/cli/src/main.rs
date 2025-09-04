@@ -46,13 +46,15 @@
 //! json-echo --log-level debug serve
 //! ```
 
+use crate::server::{create_router, run_server};
 use clap::{Parser, Subcommand};
 use json_echo_core::{
     ConfigManager, Database, FileSystemError, FileSystemManager, FileSystemResult,
 };
 use std::{env, path::PathBuf};
-
-use crate::server::{create_router, run_server};
+use tracing::{error, info};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{EnvFilter, fmt};
 
 mod server;
 
@@ -192,7 +194,28 @@ enum Commands {
 #[allow(clippy::print_stdout)]
 #[tokio::main]
 async fn main() -> FileSystemResult<()> {
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
     let cli = Cli::parse();
+
+    let stdout_layer = fmt::layer()
+        .with_ansi(true)
+        .with_filter(EnvFilter::new(cli.log_level));
+
+    tracing_subscriber::registry().with(stdout_layer).init();
+
+    print!(
+        "
+        ░█▀▀░█▀▀░█░█░█▀█░░░▀▀█░█▀▀░█▀█░█▀█░░░█▀▀░█▀▀░█▀▄░█░█░█▀▀░█▀▄
+        ░█▀▀░█░░░█▀█░█░█░░░░░█░▀▀█░█░█░█░█░░░▀▀█░█▀▀░█▀▄░▀▄▀░█▀▀░█▀▄
+        ░▀▀▀░▀▀▀░▀░▀░▀▀▀░░░▀▀░░▀▀▀░▀▀▀░▀░▀░░░▀▀▀░▀▀▀░▀░▀░░▀░░▀▀▀░▀░▀
+        ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+        Version: {VERSION}
+        ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+        \n
+    "
+    );
+
+    info!("Starting applying configuration");
 
     // Get the current executable path to determine the working directory
     let current_exe = env::current_exe()
@@ -212,15 +235,17 @@ async fn main() -> FileSystemResult<()> {
     // If the config file path is absolute, use its directory as the working directory
     if config_file.is_absolute() {
         let config_dir = config_file.parent().ok_or_else(|| {
+            error!("Cannot find the root folder.");
             FileSystemError::Operation("Config file has no parent directory".into())
         })?;
         current_directory = config_dir.to_path_buf();
     }
 
     // Extract the config file name for loading
-    let config_file_name = config_file
-        .file_name()
-        .ok_or_else(|| FileSystemError::Operation("Config file has no name".into()))?;
+    let config_file_name = config_file.file_name().ok_or_else(|| {
+        error!("Config file not available.");
+        FileSystemError::Operation("Config file has no name".into())
+    })?;
 
     // Set up the filesystem and configuration managers
     let file_system_manager = FileSystemManager::new(Some(current_directory))?;
@@ -229,22 +254,28 @@ async fn main() -> FileSystemResult<()> {
     // Execute the requested command
     match cli.command {
         Commands::Init => {
+            info!("Generating default config file.");
+
             // Create a default configuration and save it
             let config = json_echo_core::Config::default();
             config_manager
                 .save_config("json-echo.json", &config)
                 .await?;
 
-            println!(
+            info!(
                 "Configuration file created at: {}",
                 config_manager.get_root().join("json-echo.json").display()
             );
         }
         Commands::Serve => {
+            info!("Loading config file.");
+
             // Load the configuration file
             config_manager
                 .load_config(config_file_name.display().to_string().as_str())
                 .await?;
+
+            info!("Populating in-memory database.");
 
             // Populate the in-memory database with route configurations
             let mut db = Database::new();
