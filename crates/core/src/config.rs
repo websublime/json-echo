@@ -111,6 +111,8 @@ pub enum ConfigResponse {
 ///
 /// * `port` - Optional server port number (defaults to 3001)
 /// * `hostname` - Optional server hostname (defaults to "localhost")
+/// * `static_folder` - Optional folder path for serving static files (relative to application root)
+/// * `static_route` - Base route path for static file serving (defaults to "/static")
 /// * `routes` - HashMap of route configurations indexed by route path
 ///
 /// # Examples
@@ -130,11 +132,15 @@ pub enum ConfigResponse {
 /// {
 ///     "port": 8080,
 ///     "hostname": "0.0.0.0",
+///     "static_folder": "public",
+///     "static_route": "/assets",
 ///     "routes": {}
 /// }
 /// "#;
 /// let parsed: Config = serde_json::from_str(json_config).unwrap();
 /// assert_eq!(parsed.port, Some(8080));
+/// assert_eq!(parsed.static_folder, Some("public".to_string()));
+/// assert_eq!(parsed.static_route, "/assets".to_string());
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -144,6 +150,12 @@ pub struct Config {
     /// The hostname for the server
     #[serde(default = "default_host")]
     pub hostname: Option<String>,
+    /// Optional folder path to serve static files from (relative to application root)
+    #[serde(default)]
+    pub static_folder: Option<String>,
+    /// The base route path for serving static files (defaults to "/static")
+    #[serde(default = "default_static_route")]
+    pub static_route: String,
     /// A map of routes, where the key is the route path and the value is the route configuration
     #[serde(default = "HashMap::new")]
     pub routes: HashMap<String, ConfigRoute>,
@@ -161,6 +173,29 @@ pub struct Config {
 #[allow(clippy::unnecessary_wraps)]
 fn default_port() -> Option<u16> {
     Some(3001)
+}
+
+/// Returns the default static route path for serving static files.
+///
+/// Provides a default static route value of "/static" for serving static files.
+/// This function is used by serde as the default value provider when
+/// the static_route field is missing from the configuration JSON.
+///
+/// # Returns
+///
+/// `"/static"` - The default static route path as a String
+///
+/// # Examples
+///
+/// ```rust
+/// use json_echo_core::Config;
+///
+/// let config = Config::default();
+/// assert_eq!(config.static_route, "/static");
+/// ```
+#[allow(clippy::unnecessary_wraps)]
+fn default_static_route() -> String {
+    String::from("/static")
 }
 
 /// Returns the default hostname for the server.
@@ -195,12 +230,16 @@ impl Default for Config {
     /// let config = Config::default();
     /// assert_eq!(config.port, Some(3001));
     /// assert_eq!(config.hostname, Some("localhost".to_string()));
+    /// assert!(config.static_folder.is_none());
+    /// assert_eq!(config.static_route, "/static");
     /// assert!(config.routes.is_empty());
     /// ```
     fn default() -> Self {
         Self {
             port: default_port(),
             hostname: default_host(),
+            static_folder: None,
+            static_route: default_static_route(),
             routes: HashMap::new(),
         }
     }
