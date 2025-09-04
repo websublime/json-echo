@@ -55,7 +55,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::{FileSystemManager, FileSystemResult, errors::FileSystemError};
 
@@ -75,13 +75,13 @@ use crate::{FileSystemManager, FileSystemResult, errors::FileSystemError};
 /// # Examples
 ///
 /// ```rust
-/// use json_echo_core::{ConfigResponse, ConfigRouteResponse};
+/// use json_echo_core::{ConfigResponse, ConfigRouteResponse, BodyResponse};
 /// use serde_json::Value;
 ///
 /// // Structured response
 /// let structured = ConfigResponse::ConfigRouteResponse(ConfigRouteResponse {
 ///     status: Some(200),
-///     body: Value::Null,
+///     body: BodyResponse::Value(Value::Null),
 /// });
 ///
 /// // String response (often used for file references)
@@ -222,7 +222,7 @@ impl Default for Config {
 /// # Examples
 ///
 /// ```rust
-/// use json_echo_core::{ConfigRoute, ConfigResponse, ConfigRouteResponse};
+/// use json_echo_core::{ConfigRoute, ConfigResponse, ConfigRouteResponse, BodyResponse};
 /// use serde_json::Value;
 /// use std::collections::HashMap;
 ///
@@ -237,7 +237,7 @@ impl Default for Config {
 ///     results_field: Some("data".to_string()),
 ///     response: ConfigResponse::ConfigRouteResponse(ConfigRouteResponse {
 ///         status: Some(200),
-///         body: Value::Null,
+///         body: BodyResponse::Value(Value::Null),
 ///     }),
 /// };
 /// ```
@@ -319,51 +319,111 @@ impl Default for ConfigRoute {
             headers: None,
             response: ConfigResponse::ConfigRouteResponse(ConfigRouteResponse {
                 status: default_status(),
-                body: Value::Object(Map::new()),
+                body: default_body(),
             }),
         }
     }
 }
 
-// TODO: Apply to body response
+/// Represents different types of response body content for route configurations.
+///
+/// This enum allows route responses to contain different types of body content:
+/// JSON values, string content, or file references. The untagged serde attribute
+/// enables automatic deserialization based on the content structure without
+/// requiring explicit type indicators in the JSON configuration.
+///
+/// # Variants
+///
+/// * `Value` - A JSON value (object, array, string, number, boolean, or null)
+/// * `String` - A string response, often used for plain text or file references
+/// * `Str` - Alternative string representation for configuration flexibility
+///
+/// # Examples
+///
+/// ```rust
+/// use json_echo_core::BodyResponse;
+/// use serde_json::{json, Value};
+///
+/// // JSON object response
+/// let json_response = BodyResponse::Value(json!({"message": "Hello, World!"}));
+///
+/// // String response
+/// let text_response = BodyResponse::String("Plain text response".to_string());
+///
+/// // File reference (handled during configuration processing)
+/// let file_ref = BodyResponse::String("data/users.json".to_string());
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum BodyResponse {
-    /// A structured response configuration with status code and JSON body
+    /// A JSON value representing structured response content
     Value(Value),
-    /// A string response, often used for file path references
+    /// A string response, often used for plain text or file path references
     String(String),
     /// Alternative string representation for configuration flexibility
     Str(String),
 }
 
-/// Structured response configuration with HTTP status and JSON body.
+#[allow(clippy::match_wildcard_for_single_variants)]
+impl BodyResponse {
+    pub fn as_value(&self) -> Value {
+        match self {
+            BodyResponse::Value(value) => value.clone(),
+            BodyResponse::Str(value) | BodyResponse::String(value) => Value::String(value.clone()),
+            _ => json!({}),
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            BodyResponse::Str(value) | BodyResponse::String(value) => value.as_str(),
+            _ => "",
+        }
+    }
+
+    pub fn is_value(&self) -> bool {
+        matches!(self, BodyResponse::Value(_))
+    }
+
+    pub fn is_str(&self) -> bool {
+        matches!(self, BodyResponse::Str(_) | BodyResponse::String(_))
+    }
+}
+
+/// Structured response configuration with HTTP status and response body.
 ///
 /// The `ConfigRouteResponse` struct represents a complete HTTP response
 /// specification including the status code and response body content.
-/// It provides the most detailed control over route responses.
+/// It provides the most detailed control over route responses with support
+/// for various body content types through the `BodyResponse` enum.
 ///
 /// # Fields
 ///
 /// * `status` - Optional HTTP status code (defaults to 200)
-/// * `body` - JSON response body content
+/// * `body` - Response body content of type `BodyResponse` (defaults to empty JSON object)
 ///
 /// # Examples
 ///
 /// ```rust
-/// use json_echo_core::ConfigRouteResponse;
+/// use json_echo_core::{ConfigRouteResponse, BodyResponse};
 /// use serde_json::{json, Value};
 ///
-/// // Simple response with default status
+/// // Simple response with default status and JSON body
 /// let response = ConfigRouteResponse {
 ///     status: None, // Will use default 200
-///     body: json!({"message": "Hello, World!"}),
+///     body: BodyResponse::Value(json!({"message": "Hello, World!"})),
 /// };
 ///
-/// // Custom status code response
+/// // Custom status code response with JSON body
 /// let error_response = ConfigRouteResponse {
 ///     status: Some(404),
-///     body: json!({"error": "Not found"}),
+///     body: BodyResponse::Value(json!({"error": "Not found"})),
+/// };
+///
+/// // String response body
+/// let text_response = ConfigRouteResponse {
+///     status: Some(200),
+///     body: BodyResponse::String("Plain text response".to_string()),
 /// };
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -371,9 +431,9 @@ pub struct ConfigRouteResponse {
     /// The HTTP status code for the response
     #[serde(default = "default_status")]
     pub status: Option<u16>,
-    /// The response body, if applicable
-    #[serde(default)]
-    pub body: Value,
+    /// The response body content, supporting various content types via BodyResponse
+    #[serde(default = "default_body")]
+    pub body: BodyResponse,
 }
 
 /// Returns the default HTTP status code for responses.
@@ -388,6 +448,34 @@ pub struct ConfigRouteResponse {
 #[allow(clippy::unnecessary_wraps)]
 fn default_status() -> Option<u16> {
     Some(200)
+}
+
+/// Returns the default response body for route configurations.
+///
+/// Provides a default empty JSON object as the response body when no specific
+/// body content is defined in the route configuration. This function is used
+/// by serde as the default value provider for the body field.
+///
+/// # Returns
+///
+/// `BodyResponse::Value(Value::Object(Map::new()))` - An empty JSON object wrapped in BodyResponse::Value
+///
+/// # Examples
+///
+/// ```rust
+/// use json_echo_core::BodyResponse;
+/// use serde_json::{Map, Value};
+///
+/// // Creating a default empty JSON object body response
+/// let empty_body = BodyResponse::Value(Value::Object(Map::new()));
+/// match empty_body {
+///     BodyResponse::Value(Value::Object(map)) => assert!(map.is_empty()),
+///     _ => panic!("Expected empty JSON object"),
+/// }
+/// ```
+#[allow(clippy::unnecessary_wraps)]
+fn default_body() -> BodyResponse {
+    BodyResponse::Value(Value::Object(Map::new()))
 }
 
 /// Manager for loading, processing, and saving configuration files.
