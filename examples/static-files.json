@@ -1,0 +1,189 @@
+{
+  "port": 3001,
+  "hostname": "localhost",
+  "static_folder": "public",
+  "static_route": "/static",
+  "routes": {
+    "/api/health": {
+      "method": "GET",
+      "description": "Health check endpoint",
+      "response": {
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "timestamp": "2024-01-01T00:00:00Z",
+          "version": "1.0.0"
+        }
+      }
+    },
+    "/api/config": {
+      "method": "GET",
+      "description": "Application configuration",
+      "response": {
+        "status": 200,
+        "body": {
+          "apiUrl": "http://localhost:3001",
+          "staticUrl": "http://localhost:3001/static",
+          "environment": "development",
+          "features": {
+            "authentication": true,
+            "fileUpload": true,
+            "realTimeUpdates": false
+          }
+        }
+      }
+    },
+    "/api/assets/manifest": {
+      "method": "GET",
+      "description": "Asset manifest for frontend builds",
+      "response": {
+        "status": 200,
+        "body": {
+          "files": {
+            "main.js": "/static/js/main.123abc.js",
+            "main.css": "/static/css/main.456def.css",
+            "index.html": "/static/index.html"
+          },
+          "entrypoints": [
+            "/static/js/main.123abc.js",
+            "/static/css/main.456def.css"
+          ]
+        }
+      }
+    },
+    "/api/users": {
+      "method": "GET",
+      "description": "Get all users",
+      "id_field": "id",
+      "response": {
+        "status": 200,
+        "body": {
+          "users": [
+            {
+              "id": 1,
+              "name": "John Doe",
+              "email": "john@example.com",
+              "avatar": "/static/images/avatars/john.png"
+            },
+            {
+              "id": 2,
+              "name": "Jane Smith",
+              "email": "jane@example.com",
+              "avatar": "/static/images/avatars/jane.png"
+            },
+            {
+              "id": 3,
+              "name": "Bob Johnson",
+              "email": "bob@example.com",
+              "avatar": "/static/images/avatars/bob.png"
+            }
+          ],
+          "total": 3
+        }
+      }
+    },
+    "/api/users/{id}": {
+      "method": "GET",
+      "description": "Get user by ID",
+      "id_field": "id",
+      "response": {
+        "status": 200,
+        "body": {
+          "users": [
+            {
+              "id": 1,
+              "name": "John Doe",
+              "email": "john@example.com",
+              "avatar": "/static/images/avatars/john.png",
+              "profile": {
+                "bio": "Software engineer with 5 years of experience",
+                "location": "San Francisco, CA",
+                "website": "https://johndoe.dev"
+              }
+            },
+            {
+              "id": 2,
+              "name": "Jane Smith",
+              "email": "jane@example.com",
+              "avatar": "/static/images/avatars/jane.png",
+              "profile": {
+                "bio": "Product designer and UX researcher",
+                "location": "New York, NY",
+                "website": "https://janesmith.design"
+              }
+            },
+            {
+              "id": 3,
+              "name": "Bob Johnson",
+              "email": "bob@example.com",
+              "avatar": "/static/images/avatars/bob.png",
+              "profile": {
+                "bio": "Full-stack developer and team lead",
+                "location": "Austin, TX",
+                "website": "https://bobjohnson.dev"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "/api/posts": {
+      "method": "GET",
+      "description": "Get all blog posts",
+      "response": {
+        "status": 200,
+        "body": {
+          "posts": [
+            {
+              "id": 1,
+              "title": "Getting Started with JSON Echo",
+              "slug": "getting-started-json-echo",
+              "excerpt": "Learn how to set up and configure JSON Echo for your projects",
+              "content": "Full blog post content would go here...",
+              "featuredImage": "/static/images/posts/getting-started.jpg",
+              "author": {
+                "name": "John Doe",
+                "avatar": "/static/images/avatars/john.png"
+              },
+              "publishedAt": "2024-01-15T10:00:00Z",
+              "tags": ["tutorial", "json-echo", "api"]
+            },
+            {
+              "id": 2,
+              "title": "Static File Serving Best Practices",
+              "slug": "static-file-serving-best-practices",
+              "excerpt": "Best practices for serving static files in development",
+              "content": "Full blog post content would go here...",
+              "featuredImage": "/static/images/posts/static-files.jpg",
+              "author": {
+                "name": "Jane Smith",
+                "avatar": "/static/images/avatars/jane.png"
+              },
+              "publishedAt": "2024-01-20T14:30:00Z",
+              "tags": ["best-practices", "static-files", "development"]
+            }
+          ],
+          "total": 2
+        }
+      }
+    },
+    "/api/media/upload": {
+      "method": "POST",
+      "description": "Mock file upload endpoint",
+      "response": {
+        "status": 201,
+        "body": {
+          "success": true,
+          "file": {
+            "id": "upload_123456",
+            "filename": "example.jpg",
+            "url": "/static/uploads/example.jpg",
+            "size": 245760,
+            "mimeType": "image/jpeg",
+            "uploadedAt": "2024-01-25T16:45:00Z"
+          }
+        }
+      }
+    }
+  }
+}
