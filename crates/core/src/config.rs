@@ -55,6 +55,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
+// The json! macro is used in documentation examples
+#[allow(unused_imports)]
 use serde_json::{Map, Value, json};
 
 use crate::{FileSystemManager, FileSystemResult, errors::FileSystemError};
@@ -246,10 +248,10 @@ pub struct ConfigRoute {
     /// The HTTP method for the route (e.g., GET, POST)
     #[serde(default = "default_method")]
     pub method: Option<String>,
-    /// The path for the route
+    /// Optional human-readable description of the route
     #[serde(default)]
     pub description: Option<String>,
-    /// The response status code for the route
+    /// Optional custom HTTP headers to include in responses
     #[serde(default)]
     pub headers: Option<HashMap<String, String>>,
     /// The field in the response body to use as the unique identifier, if applicable
@@ -258,7 +260,7 @@ pub struct ConfigRoute {
     /// The field in the response body that contains the results array, if applicable
     #[serde(default)]
     pub results_field: Option<String>,
-    /// The response body for the route, if applicable
+    /// The response configuration for this route
     pub response: ConfigResponse,
 }
 
@@ -364,27 +366,118 @@ pub enum BodyResponse {
     Str(String),
 }
 
-#[allow(clippy::match_wildcard_for_single_variants)]
 impl BodyResponse {
+    /// Converts the BodyResponse to a JSON Value.
+    ///
+    /// This method extracts the underlying JSON value from the BodyResponse.
+    /// String variants are converted to JSON string values, while Value variants
+    /// are returned as-is. This is useful for serialization and JSON manipulation.
+    ///
+    /// # Returns
+    ///
+    /// A `Value` representing the body content
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::BodyResponse;
+    /// use serde_json::{json, Value};
+    ///
+    /// let json_body = BodyResponse::Value(json!({"key": "value"}));
+    /// let value = json_body.as_value();
+    /// assert_eq!(value, json!({"key": "value"}));
+    ///
+    /// let string_body = BodyResponse::String("Hello".to_string());
+    /// let value = string_body.as_value();
+    /// assert_eq!(value, Value::String("Hello".to_string()));
+    /// ```
     pub fn as_value(&self) -> Value {
         match self {
             BodyResponse::Value(value) => value.clone(),
             BodyResponse::Str(value) | BodyResponse::String(value) => Value::String(value.clone()),
-            _ => json!({}),
         }
     }
 
+    /// Returns the string representation of the BodyResponse.
+    ///
+    /// This method extracts string content from string variants of BodyResponse.
+    /// For Value variants, it returns an empty string since they don't have
+    /// a direct string representation. This is useful when you need to access
+    /// the raw string content of the response body.
+    ///
+    /// # Returns
+    ///
+    /// A string slice containing the body content, or empty string for Value variants
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::BodyResponse;
+    /// use serde_json::json;
+    ///
+    /// let string_body = BodyResponse::String("Hello, World!".to_string());
+    /// assert_eq!(string_body.as_str(), "Hello, World!");
+    ///
+    /// let json_body = BodyResponse::Value(json!({"key": "value"}));
+    /// assert_eq!(json_body.as_str(), "");
+    /// ```
     pub fn as_str(&self) -> &str {
         match self {
             BodyResponse::Str(value) | BodyResponse::String(value) => value.as_str(),
-            _ => "",
+            BodyResponse::Value(_) => "",
         }
     }
 
+    /// Checks if the BodyResponse contains a JSON Value.
+    ///
+    /// Returns true if the BodyResponse is a Value variant, false otherwise.
+    /// This is useful for determining the type of content before processing.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the body contains a JSON Value, `false` otherwise
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::BodyResponse;
+    /// use serde_json::json;
+    ///
+    /// let json_body = BodyResponse::Value(json!({"key": "value"}));
+    /// assert!(json_body.is_value());
+    ///
+    /// let string_body = BodyResponse::String("Hello".to_string());
+    /// assert!(!string_body.is_value());
+    /// ```
     pub fn is_value(&self) -> bool {
         matches!(self, BodyResponse::Value(_))
     }
 
+    /// Checks if the BodyResponse contains a string.
+    ///
+    /// Returns true if the BodyResponse is either a String or Str variant,
+    /// false otherwise. This is useful for determining if the content is
+    /// string-based before processing.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the body contains string content, `false` otherwise
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::BodyResponse;
+    /// use serde_json::json;
+    ///
+    /// let string_body = BodyResponse::String("Hello".to_string());
+    /// assert!(string_body.is_str());
+    ///
+    /// let str_body = BodyResponse::Str("World".to_string());
+    /// assert!(str_body.is_str());
+    ///
+    /// let json_body = BodyResponse::Value(json!({"key": "value"}));
+    /// assert!(!json_body.is_str());
+    /// ```
     pub fn is_str(&self) -> bool {
         matches!(self, BodyResponse::Str(_) | BodyResponse::String(_))
     }
