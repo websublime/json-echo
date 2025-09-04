@@ -42,7 +42,31 @@ echo --config examples/external-files.json serve
 - `GET /api/orders` - Orders from external file
 - `GET /api/orders/{id}` - Get order by ID
 
-### 3. `full-featured.json`
+### 3. `static-files.json`
+**Configuration with static file serving for assets and frontend files**
+
+```bash
+echo --config examples/static-files.json serve
+```
+
+**Features demonstrated:**
+- Static file serving configuration
+- Mixed API and static content
+- Asset references in API responses
+- File upload mock endpoints
+- Avatar and image serving
+
+**Available endpoints:**
+- `GET /api/health` - Health check with version info
+- `GET /api/config` - App configuration with static URLs
+- `GET /api/assets/manifest` - Asset manifest for builds
+- `GET /api/users` - Users with avatar URLs
+- `GET /api/users/{id}` - User details with profile assets
+- `GET /api/posts` - Blog posts with featured images
+- `POST /api/media/upload` - Mock file upload
+- `GET /static/*` - Static files (HTML, CSS, JS, images)
+
+### 4. `full-featured.json`
 **Comprehensive example showcasing all JSON Echo features**
 
 ```bash
@@ -84,6 +108,9 @@ echo --config examples/basic-api.json serve
 # External files (requires data files)
 echo --config examples/external-files.json serve
 
+# Static file serving
+echo --config examples/static-files.json serve
+
 # Full featured
 echo --config examples/full-featured.json serve
 ```
@@ -106,6 +133,11 @@ curl http://localhost:8080/api/products
 # Get product by custom field
 curl http://localhost:3001/api/products/MBP-16-M2MAX-512
 
+# Test static files
+curl http://localhost:3001/static/index.html
+curl http://localhost:3001/static/css/style.css
+curl http://localhost:3001/static/images/logo.png
+
 # Test error responses
 curl http://localhost:3001/api/errors/not-found
 curl http://localhost:3001/api/status
@@ -123,6 +155,12 @@ curl -X OPTIONS http://localhost:3001/api/users \
 # Test actual CORS request
 curl -X GET http://localhost:3001/api/users \
   -H "Origin: http://localhost:3000" \
+  -v
+
+# Test CORS with static files
+curl -X OPTIONS http://localhost:3001/static/app.js \
+  -H "Origin: http://localhost:3000" \
+  -H "Access-Control-Request-Method: GET" \
   -v
 ```
 
@@ -149,6 +187,8 @@ Product categories featuring:
 1. **Choose an example** based on your needs:
    - New to JSON Echo? Start with `basic-api.json`
    - Need external files? Try `external-files.json`
+   - Want static file serving? Use `static-files.json`
+   - Building a SPA? Try `spa-config.json`
    - Want to see everything? Use `full-featured.json`
 
 2. **Start the server:**
@@ -224,6 +264,15 @@ echo --config examples/basic-api.json serve
 # Your frontend can now call http://localhost:3001/api/users
 ```
 
+### Static Asset Testing
+Use `static-files.json` to test both API and static content delivery:
+
+```bash
+echo --config examples/static-files.json serve
+# API: http://localhost:3001/api/users
+# Assets: http://localhost:3001/static/css/style.css
+```
+
 ### API Testing
 Use `full-featured.json` to test error handling and edge cases:
 
@@ -251,10 +300,12 @@ echo --config examples/external-files.json serve
 
 1. **Start Simple**: Begin with `basic-api.json` and gradually add complexity
 2. **Use External Files**: For large datasets, use external JSON files like in `external-files.json`
-3. **Test Different Status Codes**: Use examples from `full-featured.json` to test error handling
-4. **Organize Data**: Keep data files in a separate directory for better organization
-5. **Document Your API**: Add descriptions to all routes for better maintainability
-6. **Use Meaningful IDs**: Choose ID fields that make sense for your data model
-7. **Plan for Pagination**: Structure your responses to support pagination from the start
+3. **Combine API and Static Content**: Use `static-files.json` for mixed API and asset serving
+4. **Test Different Status Codes**: Use examples from `full-featured.json` to test error handling
+5. **Organize Data**: Keep data files in a separate directory for better organization
+6. **Document Your API**: Add descriptions to all routes for better maintainability
+7. **Use Meaningful IDs**: Choose ID fields that make sense for your data model
+8. **Plan for Pagination**: Structure your responses to support pagination from the start
+9. **Static File Organization**: Structure your static files logically (css/, js/, images/)
 
 Happy mocking! 🚀

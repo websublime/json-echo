@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://example.com/api-config.schema.json",
   "title": "Json Echo Configuration Schema",
-  "description": "Json Echo Schema api configuration.",
+  "description": "JSON Echo configuration schema for defining mock API servers with static file serving capabilities.",
   "type": "object",
   "properties": {
     "port": {
@@ -13,9 +13,18 @@
       "type": "string",
       "description": "Hostname"
     },
+    "static_folder": {
+      "type": "string",
+      "description": "Optional relative folder path to serve static files from (e.g., 'public', 'dist', 'assets')"
+    },
+    "static_route": {
+      "type": "string",
+      "description": "Base route path for serving static files (defaults to '/static')",
+      "default": "/static"
+    },
     "routes": {
       "type": "object",
-      "description": "Routes mapping and configs",
+      "description": "Map of API route paths to their configuration objects",
       "patternProperties": {
         "^/.*": {
           "type": "object",
@@ -23,47 +32,50 @@
             "method": {
               "type": "string",
               "enum": ["GET", "POST", "PUT", "DELETE", "PATCH"],
-              "description": "Http method for the route"
+              "description": "HTTP method for the route (defaults to 'GET')",
+              "default": "GET"
             },
             "id_field": {
               "type": "string",
-              "description": "ID field"
+              "description": "Field name to use as unique identifier (defaults to 'id')",
+              "default": "id"
             },
             "results_field": {
               "type": "string",
-              "description": "Body custom field where results/data are appended"
+              "description": "Field name containing results when data is nested (optional)"
             },
             "description": {
               "type": "string",
-              "description": "Route description"
+              "description": "Human-readable description of the route (optional)"
             },
             "headers": {
               "type": "object",
-              "description": "Headers for the http route"
+              "description": "Custom HTTP headers to include in responses (optional)"
             },
             "response": {
               "type": ["string", "object"],
-              "description": "Body response or file path",
+              "description": "Response configuration object or path to external JSON file",
               "properties": {
                 "status": {
                   "type": "integer",
-                  "description": "Http status code"
+                  "description": "HTTP status code (defaults to 200)",
+                  "default": 200
                 },
                 "body": {
                   "type": ["string", "object"],
-                  "description": "Data response"
+                  "description": "Response body content (JSON value, string, or BodyResponse object)"
                 }
               },
               "required": ["status", "body"],
               "additionalProperties": false
             }
           },
-          "required": ["method", "description"],
+          "required": ["response"],
           "additionalProperties": false
         }
       },
       "additionalProperties": false
     }
   },
-  "required": ["port", "hostname", "routes"]
+  "required": ["routes"]
 }
