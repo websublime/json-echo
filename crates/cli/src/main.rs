@@ -293,7 +293,7 @@ async fn main() -> FileSystemResult<()> {
             let port = port_string.as_str();
 
             // Start the server with the configured routes and settings
-            run_server(hostname, port, create_router(db)).await?;
+            run_server(hostname, port, create_router(db, &config_manager)).await?;
         }
     }
 

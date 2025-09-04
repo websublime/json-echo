@@ -47,11 +47,12 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use json_echo_core::Database;
+use json_echo_core::{ConfigManager, Database};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use std::{collections::HashMap, io::Error as IOError};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
 use tracing::{debug, info};
 
 /// Application state container that holds shared data across request handlers.
@@ -164,10 +165,11 @@ pub async fn run_server(host: &str, port: &str, router: Router) -> Result<(), IO
 /// let router = create_router(db);
 /// // Router is now ready to handle requests
 /// ```
-pub fn create_router(db: Database) -> Router {
+pub fn create_router(db: Database, config_manager: &ConfigManager) -> Router {
     info!("Getting models from config");
     // First get the models before moving db
     let models = db.get_models();
+    let config = &config_manager.config;
 
     // Create a router with all the routes (no state yet)
     let router_with_routes = models.iter().fold(Router::new(), |router, model| {
@@ -205,10 +207,23 @@ pub fn create_router(db: Database) -> Router {
     let state = Arc::new(AppState { db });
 
     // Add CORS and state
-    router_with_routes
+    let router = router_with_routes
         .fallback(handler_404)
         .layer(cors)
-        .with_state(state)
+        .with_state(state);
+
+    if let Some(static_folder) = config.static_folder.as_ref() {
+        let static_route = config.static_route.as_str();
+
+        info!(
+            "Serving static files from: {}, on route {}",
+            static_folder, static_route
+        );
+        let serve_dir = ServeDir::new(config_manager.get_root().join(static_folder));
+        return router.nest_service(static_route, serve_dir);
+    }
+
+    router
 }
 
 /// Fallback handler for undefined routes (404 Not Found).
