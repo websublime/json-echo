@@ -74,8 +74,7 @@ Edit the `json-echo.json` file to define your mock API:
         ]
       }
     },
-    "/api/users/{id}": {
-      "method": "GET",
+    "[GET] /api/users/{id}": {
       "description": "Get user by ID",
       "id_field": "id",
       "response": "users.json"
@@ -233,6 +232,31 @@ With this configuration:
 - `public/css/style.css` becomes available at `http://localhost:3001/static/css/style.css`
 - API routes continue to work normally
 
+#### With HTTP Method
+
+```json
+{
+  "routes": {
+    "[GET] /api/users": {
+      "response": "data/users.json"
+    },
+    "[POST] /api/users": {
+      "response": "data/users.json"
+    },
+    "[DELETE] /api/users/{id}": {
+      "response": "data/users.json"
+    },
+  }
+}
+```
+
+With this configuration:
+- `GET /api/users` returns the list of users
+- `POST /api/users` simulates user creation
+- `DELETE /api/users/{id}` simulates user deletion by ID
+
+So you can use different HTTP methods for the same route path.
+
 ### API Examples
 
 Once your server is running, you can make requests:
@@ -296,31 +320,6 @@ your-project/
 ```
 
 ### Use Cases
-
-#### Single Page Application (SPA)
-
-Serve a React, Vue, or Angular application with mock API:
-
-```json
-{
-  "port": 3000,
-  "static_folder": "dist",
-  "static_route": "/",
-  "routes": {
-    "/api/auth/login": {
-      "method": "POST",
-      "response": {
-        "status": 200,
-        "body": {"token": "mock-jwt-token", "user": {"id": 1, "name": "Demo User"}}
-      }
-    },
-    "/api/data": {
-      "method": "GET",
-      "response": "data/mock-data.json"
-    }
-  }
-}
-```
 
 #### Development Environment
 
@@ -478,9 +477,6 @@ echo --config my-custom-config.json serve
 ### Static File Serving Examples
 
 ```bash
-# Serve a Single Page Application
-echo --config spa-config.json serve
-
 # Development with assets
 echo --config dev-config.json serve
 
@@ -498,7 +494,7 @@ Example configurations:
   "static_route": "/",
   "routes": {
     "/api/auth": {"response": {"token": "mock-token"}},
-    "/api/users": {"response": "data/users.json"}
+    "[GET] /api/users": {"response": "data/users.json"}
   }
 }
 ```
@@ -551,10 +547,12 @@ CMD ["echo", "serve"]
 cargo test
 ```
 
-### Integration Tests
+### Individual Tests
 
 ```bash
-cargo test --test integration
+cargo test -p json-echo-core --test config_tests
+cargo test -p json-echo-core --test filesystem_tests
+cargo test -p json-echo-core --test database_tests
 ```
 
 ### Example Requests
@@ -656,7 +654,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Integration Testing**: Mock external services in integration test suites
 - **Demo Applications**: Provide realistic data and serve demo assets for presentations
 - **Development Workflows**: Support offline development and testing with both API and static content
-- **Single Page Applications**: Serve SPA files while providing mock API endpoints
 - **Asset Testing**: Test static asset delivery alongside API functionality
 
 ## 📞 Support

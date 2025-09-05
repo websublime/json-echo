@@ -1,5 +1,5 @@
 {
-  "$schema": "https://gist.githubusercontent.com/miguelramos/830619c25af97d27fc785c693e964c78/raw/03c58ea4100966711e2f2c0364cd6ae127631fe5/json-echo-schema.json",
+  "$schema": "https://raw.githubusercontent.com/websublime/json-echo/refs/heads/main/schema.json",
   "port": 3001,
   "hostname": "localhost",
   "routes": {

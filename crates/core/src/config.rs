@@ -727,7 +727,10 @@ impl ConfigManager {
             .file_system_manager
             .load_file(relative_file_path)
             .await?;
-        self.config = serde_json::from_slice(&file_content).map_err(FileSystemError::from)?;
+
+        let config =
+            serde_json::from_slice::<Config>(&file_content).map_err(FileSystemError::from)?;
+        self.config = ConfigManager::setup_config(config);
 
         if self.config.routes.is_empty() {
             return Err(FileSystemError::Operation(
@@ -780,6 +783,114 @@ impl ConfigManager {
             }
         }
         Ok(())
+    }
+
+    /// Normalizes and processes route configurations to ensure consistent key formatting.
+    ///
+    /// This method processes route configurations to standardize route identifiers by
+    /// ensuring all routes follow the format `[METHOD] path`. It handles various input
+    /// formats and ensures consistency between route keys and their method specifications.
+    ///
+    /// # Parameters
+    ///
+    /// * `config` - The raw configuration loaded from JSON file
+    ///
+    /// # Returns
+    ///
+    /// A processed `Config` with normalized route identifiers and method specifications
+    ///
+    /// # Behavior
+    ///
+    /// The method performs the following normalization steps:
+    /// 1. **Bracketed Format Detection**: Checks if route keys contain `[METHOD]` prefix
+    /// 2. **Method Extraction**: Extracts HTTP method from bracketed route keys
+    /// 3. **Method Validation**: Sets default "GET" method if none specified
+    /// 4. **Key Standardization**: Formats all route keys as `[METHOD] path`
+    /// 5. **Route Reconstruction**: Rebuilds the routes HashMap with normalized keys
+    ///
+    /// # Route Key Processing
+    ///
+    /// - **Input**: `[POST] /api/users` → **Output**: `[POST] /api/users` (method updated in route)
+    /// - **Input**: `/users` with `method: "DELETE"` → **Output**: `[DELETE] /users`
+    /// - **Input**: `/users` with no method → **Output**: `[GET] /users` (default method)
+    /// - **Input**: `[INVALID /users` → **Output**: `[GET] [INVALID /users` (treated as path)
+    ///
+    /// # Method Priority
+    ///
+    /// 1. Method extracted from bracketed route key (highest priority)
+    /// 2. Method specified in route configuration
+    /// 3. Default "GET" method (fallback)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::{Config, ConfigRoute, ConfigManager};
+    /// use std::collections::HashMap;
+    ///
+    /// let mut routes = HashMap::new();
+    ///
+    /// // Route with bracketed format
+    /// routes.insert("[POST] /api/users".to_string(), ConfigRoute::default());
+    ///
+    /// // Route with method in configuration
+    /// let mut route = ConfigRoute::default();
+    /// route.method = Some("DELETE".to_string());
+    /// routes.insert("/users".to_string(), route);
+    ///
+    /// // Route without method (will default to GET)
+    /// routes.insert("/products".to_string(), ConfigRoute::default());
+    ///
+    /// let config = Config {
+    ///     port: Some(3000),
+    ///     hostname: Some("localhost".to_string()),
+    ///     static_folder: None,
+    ///     static_route: "/static".to_string(),
+    ///     routes,
+    /// };
+    ///
+    /// let normalized = ConfigManager::setup_config(config);
+    ///
+    /// // All routes now have standardized keys
+    /// assert!(normalized.routes.contains_key("[POST] /api/users"));
+    /// assert!(normalized.routes.contains_key("[DELETE] /users"));
+    /// assert!(normalized.routes.contains_key("[GET] /products"));
+    /// ```
+    ///
+    /// # Use Cases
+    ///
+    /// This method is essential for:
+    /// - Ensuring consistent route identifier format across the application
+    /// - Supporting multiple input formats in configuration files
+    /// - Providing reliable route lookup and matching
+    /// - Maintaining backward compatibility with different configuration styles
+    fn setup_config(config: Config) -> Config {
+        let mut new_routes: HashMap<String, ConfigRoute> = HashMap::new();
+        for (key, mut route) in config.routes {
+            let (method, path) = if key.starts_with('[') {
+                if let Some(end_idx) = key.find(']') {
+                    let method = key[1..end_idx].trim().to_uppercase();
+                    let path = key[end_idx + 1..].trim().to_string();
+                    (Some(method), path)
+                } else {
+                    (None, key)
+                }
+            } else {
+                (None, key)
+            };
+            if route.method.is_none() {
+                route.method = method.or_else(|| Some("GET".to_string()));
+            }
+            let route_key = format!("[{}] {}", route.method.as_deref().unwrap_or("GET"), path);
+            new_routes.insert(route_key, route);
+        }
+
+        Config {
+            port: config.port,
+            hostname: config.hostname,
+            static_folder: config.static_folder,
+            static_route: config.static_route,
+            routes: new_routes,
+        }
     }
 
     /// Saves a configuration to a file on the filesystem.

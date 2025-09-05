@@ -24,7 +24,7 @@
     },
     "routes": {
       "type": "object",
-      "description": "Map of API route paths to their configuration objects",
+      "description": "Map of API route paths to their configuration objects. Keys can have method pattern prepended with the pattern: [GET] /api/...",
       "patternProperties": {
         "^/.*": {
           "type": "object",
