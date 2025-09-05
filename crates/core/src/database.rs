@@ -249,6 +249,74 @@ impl Database {
         self.routes.get(&route_identifier)
     }
 
+    /// Creates a standardized route identifier from a path pattern and HTTP method.
+    ///
+    /// This private method generates consistent route identifiers by combining
+    /// HTTP methods and URL paths into a standardized format. It handles both
+    /// plain paths and bracketed method-path patterns, ensuring all identifiers
+    /// follow the format `[METHOD] path`.
+    ///
+    /// # Parameters
+    ///
+    /// * `identifier` - The route pattern string, either plain path or bracketed format
+    /// * `method` - Optional HTTP method; defaults to "GET" if not provided
+    ///
+    /// # Returns
+    ///
+    /// A standardized string in the format `[METHOD] path`
+    ///
+    /// # Behavior
+    ///
+    /// The method handles different input formats:
+    /// - **Bracketed format**: `[POST] /api/users` → extracts method and path
+    /// - **Plain path**: `/users` → combines with provided/default method
+    /// - **Malformed bracket**: `[POST /users` → treats as plain path
+    /// - **Empty method**: Uses "GET" as default
+    ///
+    /// All HTTP methods are converted to uppercase for consistency.
+    ///
+    /// # Format Rules
+    ///
+    /// - Methods are always enclosed in square brackets
+    /// - Methods are converted to uppercase (GET, POST, PUT, etc.)
+    /// - Paths preserve their original case and format
+    /// - Whitespace around methods and paths is trimmed
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Bracketed format with explicit method
+    /// assert_eq!(
+    ///     Database::define_identifier("[POST] /api/users", None),
+    ///     "[POST] /api/users"
+    /// );
+    ///
+    /// // Plain path with provided method
+    /// assert_eq!(
+    ///     Database::define_identifier("/users", Some("DELETE".to_string())),
+    ///     "[DELETE] /users"
+    /// );
+    ///
+    /// // Plain path with default method
+    /// assert_eq!(
+    ///     Database::define_identifier("/users", None),
+    ///     "[GET] /users"
+    /// );
+    ///
+    /// // Malformed bracket treated as plain path
+    /// assert_eq!(
+    ///     Database::define_identifier("[POST /users", Some("GET".to_string())),
+    ///     "[GET] [POST /users"
+    /// );
+    /// ```
+    ///
+    /// # Use Cases
+    ///
+    /// This method is used internally to:
+    /// - Normalize route identifiers for consistent storage and lookup
+    /// - Convert various input formats to a standard representation
+    /// - Enable reliable route matching in the database
+    /// - Support both explicit and implicit method specifications
     fn define_identifier(identifier: &str, method: Option<String>) -> String {
         let method_id = method.unwrap_or_else(|| String::from("GET")).to_uppercase();
 

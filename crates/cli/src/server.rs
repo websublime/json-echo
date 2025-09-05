@@ -455,6 +455,57 @@ async fn post_handler(
     }
 }
 
+/// Creates an HTTP response with the appropriate content type and format.
+///
+/// This function generates HTTP responses by examining the provided headers
+/// to determine the appropriate response format (JSON, Form, HTML, or plain text).
+/// It handles different content types and serializes the data accordingly.
+///
+/// # Parameters
+///
+/// * `headers` - HTTP headers that will be included in the response
+/// * `status` - HTTP status code for the response
+/// * `data` - JSON value containing the response data to be serialized
+///
+/// # Returns
+///
+/// A configured `Response` object ready to be sent to the client
+///
+/// # Behavior
+///
+/// The function examines the `content-type` header to determine output format:
+/// - `application/x-www-form-urlencoded` - Returns form-encoded data
+/// - `text/html` - Returns HTML content (extracts string from JSON)
+/// - `text/plain` - Returns plain text (extracts string from JSON)
+/// - Default - Returns JSON-encoded data
+///
+/// # Content Type Handling
+///
+/// - **Form Data**: Wraps the JSON value in `axum::extract::Form`
+/// - **HTML**: Extracts string content and wraps in `axum::response::Html`
+/// - **Plain Text**: Extracts string content and returns as plain text
+/// - **JSON**: Default format using `axum::Json` wrapper
+///
+/// # Examples
+///
+/// ```rust
+/// use axum::http::{HeaderMap, StatusCode};
+/// use serde_json::json;
+///
+/// let headers = HeaderMap::new();
+/// let data = json!({"message": "Hello World"});
+/// let response = response(headers, StatusCode::OK, &data);
+/// // Returns JSON response with status 200
+/// ```
+///
+/// For HTML responses:
+/// ```rust
+/// let mut headers = HeaderMap::new();
+/// headers.insert("content-type", "text/html".parse().unwrap());
+/// let data = json!("<h1>Hello World</h1>");
+/// let response = response(headers, StatusCode::OK, &data);
+/// // Returns HTML response
+/// ```
 fn response(headers: HeaderMap, status: StatusCode, data: &Value) -> Response {
     // Check header content type and use axum (Json, Form or simple text)
     if let Some(content_type) = headers.get("content-type") {
@@ -490,6 +541,54 @@ fn response(headers: HeaderMap, status: StatusCode, data: &Value) -> Response {
     (status, headers, axum::Json(data)).into_response()
 }
 
+/// Recursively merges two JSON values, modifying the first value in place.
+///
+/// This function performs a deep merge of JSON structures, combining objects
+/// by merging their fields and arrays by concatenating their elements. For
+/// primitive values or type mismatches, the second value replaces the first.
+///
+/// # Parameters
+///
+/// * `a` - Mutable reference to the target JSON value that will be modified
+/// * `b` - Reference to the source JSON value to merge from
+///
+/// # Behavior
+///
+/// The merge logic varies by JSON value type:
+/// - **Objects**: Recursively merges all fields from `b` into `a`
+/// - **Arrays**: Extends `a` by appending all elements from `b`
+/// - **Primitives/Mismatches**: Replaces `a` with a clone of `b`
+///
+/// # Object Merging
+///
+/// For objects, the function:
+/// 1. Iterates through all key-value pairs in the source object
+/// 2. For each key, either creates a new entry or recursively merges existing values
+/// 3. Maintains the structure and nested relationships
+///
+/// # Array Merging
+///
+/// For arrays, the function appends all elements from the source array
+/// to the target array, preserving order and element types.
+///
+/// # Examples
+///
+/// ```rust
+/// use serde_json::{json, Value};
+///
+/// let mut target = json!({"name": "John", "age": 30});
+/// let source = json!({"age": 31, "city": "New York"});
+/// merge(&mut target, &source);
+/// // target is now {"name": "John", "age": 31, "city": "New York"}
+/// ```
+///
+/// Array example:
+/// ```rust
+/// let mut target = json!([1, 2, 3]);
+/// let source = json!([4, 5]);
+/// merge(&mut target, &source);
+/// // target is now [1, 2, 3, 4, 5]
+/// ```
 fn merge(a: &mut Value, b: &Value) {
     match (a, b) {
         (Value::Object(a_map), Value::Object(b_map)) => {
@@ -511,6 +610,48 @@ fn merge(a: &mut Value, b: &Value) {
     }
 }
 
+/// Extracts the URL path from a route pattern string.
+///
+/// This function parses route pattern strings that may contain HTTP method
+/// prefixes in square brackets and returns the clean URL path portion.
+/// It handles both bracketed patterns and plain path strings.
+///
+/// # Parameters
+///
+/// * `pattern` - The route pattern string to parse, may include method prefix
+///
+/// # Returns
+///
+/// A string slice containing the extracted URL path
+///
+/// # Pattern Format
+///
+/// The function expects patterns in one of these formats:
+/// - `[METHOD] /path/to/endpoint` - Method prefix with path
+/// - `/path/to/endpoint` - Plain path without method prefix
+///
+/// # Behavior
+///
+/// The function:
+/// 1. Searches for the closing bracket `]` in the pattern
+/// 2. If found, extracts everything after the bracket and trims whitespace
+/// 3. If no bracket found, returns the original pattern unchanged
+///
+/// # Examples
+///
+/// ```rust
+/// assert_eq!(extract_path("[GET] /users"), "/users");
+/// assert_eq!(extract_path("[POST] /api/data"), "/api/data");
+/// assert_eq!(extract_path("/simple/path"), "/simple/path");
+/// assert_eq!(extract_path("[DELETE] /users/:id"), "/users/:id");
+/// ```
+///
+/// # Use Cases
+///
+/// This function is typically used when:
+/// - Processing route configurations that include HTTP methods
+/// - Converting internal route representations to Axum-compatible paths
+/// - Cleaning route patterns for router registration
 fn extract_path(pattern: &str) -> &str {
     if let Some(end) = pattern.find(']') {
         let path = &pattern[end + 1..].trim();
