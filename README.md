@@ -226,6 +226,12 @@ echo serve
 }
 ```
 
+With this configuration:
+- Static files in the `public/` folder are served at `/static/*`
+- `public/index.html` becomes available at `http://localhost:3001/static/index.html`
+- `public/css/style.css` becomes available at `http://localhost:3001/static/css/style.css`
+- API routes continue to work normally
+
 #### With HTTP Method
 
 ```json
@@ -245,10 +251,11 @@ echo serve
 ```
 
 With this configuration:
-- Static files in the `public/` folder are served at `/static/*`
-- `public/index.html` becomes available at `http://localhost:3001/static/index.html`
-- `public/css/style.css` becomes available at `http://localhost:3001/static/css/style.css`
-- API routes continue to work normally
+- `GET /api/users` returns the list of users
+- `POST /api/users` simulates user creation
+- `DELETE /api/users/{id}` simulates user deletion by ID
+
+So you can use different HTTP methods for the same route path.
 
 ### API Examples
 
