@@ -42,7 +42,7 @@
 
 use axum::{
     Router,
-    extract::{Json, MatchedPath, Path, Query, Request, State},
+    extract::{Json, MatchedPath, Path, Request, State},
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -314,31 +314,14 @@ async fn handler_404() -> impl IntoResponse {
 /// GET /undefined -> Returns 404 error
 /// ```
 async fn get_handler(
-    Path(params): Path<HashMap<String, String>>,
     State(state): State<Arc<AppState>>,
-    Query(_query_params): Query<HashMap<String, String>>,
-    _uri: Uri,
-    req: Request,
+    Path(params): Path<HashMap<String, String>>,
+    uri_path: Uri,
+    path: MatchedPath,
 ) -> Response {
-    let route_match = req.extensions().get::<MatchedPath>();
-    let uri_path = req.uri().path();
+    info!("[GET] request called: {}", uri_path.path());
 
-    info!("[GET] request called: {uri_path}");
-
-    if route_match.is_none() {
-        info!(
-            "Route [{uri_path}] not defined with status: {}",
-            StatusCode::NOT_FOUND
-        );
-
-        return (
-            StatusCode::NOT_FOUND,
-            axum::Json(json!({"error": "Route is not defined"})),
-        )
-            .into_response();
-    }
-
-    let route_path = route_match.unwrap().as_str();
+    let route_path = path.as_str();
     let model = state.db.get_model(&format!("[GET] {route_path}"));
     let route = state.db.get_route(route_path, Some(String::from("GET")));
 
@@ -424,10 +407,35 @@ async fn get_handler(
 async fn post_handler(
     State(state): State<Arc<AppState>>,
     Path(params): Path<HashMap<String, String>>,
+    uri_path: Uri,
     path: MatchedPath,
     payload: Option<Json<Value>>,
 ) -> impl IntoResponse {
-    info!("[POST] request received");
+    info!("[POST] request called: {}", uri_path.path());
+
+    let route_path = path.as_str();
+    let model = state.db.get_model(&format!("[POST] {route_path}"));
+    let route = state.db.get_route(route_path, Some(String::from("POST")));
+
+    debug!("Model: {:?}", model);
+    debug!("Route Config: {:?}", route);
+
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+
+    if let Some(route) = route {
+        if let Some(route_headers) = &route.headers {
+            for (key, value) in route_headers {
+                if let Ok(header_name) = key.parse::<HeaderName>() {
+                    if let Ok(header_value) = value.parse() {
+                        headers.insert(header_name, header_value);
+                    }
+                }
+            }
+        }
+    }
+
+    debug!("Headers Config: {:?}", headers);
 
     // Simple POST handler that accepts JSON payload and returns success
     match payload {
@@ -539,75 +547,6 @@ fn response(headers: HeaderMap, status: StatusCode, data: &Value) -> Response {
     }
 
     (status, headers, axum::Json(data)).into_response()
-}
-
-/// Recursively merges two JSON values, modifying the first value in place.
-///
-/// This function performs a deep merge of JSON structures, combining objects
-/// by merging their fields and arrays by concatenating their elements. For
-/// primitive values or type mismatches, the second value replaces the first.
-///
-/// # Parameters
-///
-/// * `a` - Mutable reference to the target JSON value that will be modified
-/// * `b` - Reference to the source JSON value to merge from
-///
-/// # Behavior
-///
-/// The merge logic varies by JSON value type:
-/// - **Objects**: Recursively merges all fields from `b` into `a`
-/// - **Arrays**: Extends `a` by appending all elements from `b`
-/// - **Primitives/Mismatches**: Replaces `a` with a clone of `b`
-///
-/// # Object Merging
-///
-/// For objects, the function:
-/// 1. Iterates through all key-value pairs in the source object
-/// 2. For each key, either creates a new entry or recursively merges existing values
-/// 3. Maintains the structure and nested relationships
-///
-/// # Array Merging
-///
-/// For arrays, the function appends all elements from the source array
-/// to the target array, preserving order and element types.
-///
-/// # Examples
-///
-/// ```rust
-/// use serde_json::{json, Value};
-///
-/// let mut target = json!({"name": "John", "age": 30});
-/// let source = json!({"age": 31, "city": "New York"});
-/// merge(&mut target, &source);
-/// // target is now {"name": "John", "age": 31, "city": "New York"}
-/// ```
-///
-/// Array example:
-/// ```rust
-/// let mut target = json!([1, 2, 3]);
-/// let source = json!([4, 5]);
-/// merge(&mut target, &source);
-/// // target is now [1, 2, 3, 4, 5]
-/// ```
-fn merge(a: &mut Value, b: &Value) {
-    match (a, b) {
-        (Value::Object(a_map), Value::Object(b_map)) => {
-            // Merge objects by recursively merging their fields
-            for (k, v) in b_map {
-                // Must clone the key as it's owned by b_map
-                let entry = a_map.entry(k.clone()).or_insert(Value::Null);
-                merge(entry, v);
-            }
-        }
-        (Value::Array(a_vec), Value::Array(b_vec)) => {
-            // Merge arrays by appending items from b to a
-            a_vec.extend(b_vec.iter().cloned());
-        }
-        (a, b) => {
-            // For non-container types or mismatched types, replace with a clone
-            *a = b.clone();
-        }
-    }
 }
 
 /// Extracts the URL path from a route pattern string.

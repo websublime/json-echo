@@ -870,6 +870,9 @@ impl ConfigManager {
                 if let Some(end_idx) = key.find(']') {
                     let method = key[1..end_idx].trim().to_uppercase();
                     let path = key[end_idx + 1..].trim().to_string();
+
+                    route.method = Some(method.clone());
+
                     (Some(method), path)
                 } else {
                     (None, key)
@@ -877,9 +880,11 @@ impl ConfigManager {
             } else {
                 (None, key)
             };
+
             if route.method.is_none() {
                 route.method = method.or_else(|| Some("GET".to_string()));
             }
+
             let route_key = format!("[{}] {}", route.method.as_deref().unwrap_or("GET"), path);
             new_routes.insert(route_key, route);
         }
