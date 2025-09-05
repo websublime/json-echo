@@ -727,7 +727,10 @@ impl ConfigManager {
             .file_system_manager
             .load_file(relative_file_path)
             .await?;
-        self.config = serde_json::from_slice(&file_content).map_err(FileSystemError::from)?;
+
+        let config =
+            serde_json::from_slice::<Config>(&file_content).map_err(FileSystemError::from)?;
+        self.config = ConfigManager::setup_config(config);
 
         if self.config.routes.is_empty() {
             return Err(FileSystemError::Operation(
@@ -780,6 +783,40 @@ impl ConfigManager {
             }
         }
         Ok(())
+    }
+
+    fn setup_config(config: Config) -> Config {
+        // Every key in the routes need to be checked if pattern is apply: [GET] /api/ping
+        // If present the property method from route should be updated to that one. if not present
+        // let's check if method is valid and prepend the method to the key following the pattern and
+        // for last if method property is empty let put [GET] as default
+        let mut new_routes: HashMap<String, ConfigRoute> = HashMap::new();
+        for (key, mut route) in config.routes {
+            let (method, path) = if key.starts_with('[') {
+                if let Some(end_idx) = key.find(']') {
+                    let method = key[1..end_idx].trim().to_uppercase();
+                    let path = key[end_idx + 1..].trim().to_string();
+                    (Some(method), path)
+                } else {
+                    (None, key)
+                }
+            } else {
+                (None, key)
+            };
+            if route.method.is_none() {
+                route.method = method.or_else(|| Some("GET".to_string()));
+            }
+            let route_key = format!("[{}] {}", route.method.as_deref().unwrap_or("GET"), path);
+            new_routes.insert(route_key, route);
+        }
+
+        Config {
+            port: config.port,
+            hostname: config.hostname,
+            static_folder: config.static_folder,
+            static_route: config.static_route,
+            routes: new_routes,
+        }
     }
 
     /// Saves a configuration to a file on the filesystem.

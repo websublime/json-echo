@@ -243,8 +243,29 @@ impl Database {
     ///     println!("No route found for users");
     /// }
     /// ```
-    pub fn get_route(&self, identifier: &str) -> Option<&ConfigRoute> {
-        self.routes.get(identifier)
+    pub fn get_route(&self, identifier: &str, method: Option<String>) -> Option<&ConfigRoute> {
+        let route_identifier = Database::define_identifier(identifier, method);
+
+        self.routes.get(&route_identifier)
+    }
+
+    fn define_identifier(identifier: &str, method: Option<String>) -> String {
+        let method_id = method.unwrap_or_else(|| String::from("GET")).to_uppercase();
+
+        let (method, path) = if identifier.starts_with('[') {
+            if let Some(end_idx) = identifier.find(']') {
+                let method = identifier[1..end_idx].trim().to_uppercase();
+                let path = identifier[end_idx + 1..].trim().to_string();
+
+                (method, path)
+            } else {
+                (method_id, identifier.to_string())
+            }
+        } else {
+            (method_id, identifier.to_string())
+        };
+
+        format!("[{method}] {path}")
     }
 
     /// Returns a vector of references to all route identifiers in the database.
@@ -338,6 +359,64 @@ impl Database {
         self.models
             .iter()
             .find(|model| model.identifier == identifier)
+    }
+
+    /// Updates the data of a specific model by merging new JSON data with existing data.
+    ///
+    /// This method locates a model by its identifier and updates its data by merging
+    /// the provided JSON value with the existing model data. The merge operation
+    /// follows the same intelligent merging logic as the Model's update_data method.
+    ///
+    /// # Parameters
+    ///
+    /// * `identifier` - The string identifier of the model to update
+    /// * `new_data` - The new JSON value to merge with the model's existing data
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the model was found and updated successfully
+    /// * `Err(String)` - If the model was not found or the merge operation failed
+    ///
+    /// # Behavior
+    ///
+    /// - Searches for the model with the specified identifier
+    /// - Calls the model's update_data method to perform the merge
+    /// - Preserves all existing model metadata and configuration
+    /// - Supports all merge scenarios (object+object, array+array, etc.)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::Database;
+    /// use serde_json::json;
+    ///
+    /// let mut db = Database::new();
+    /// // Assuming database has been populated with a "users" model
+    ///
+    /// // Add a new user to the users model
+    /// let new_user = json!({"id": 2, "name": "Jane", "email": "jane@example.com"});
+    /// db.update_model_data("users", new_user)?;
+    ///
+    /// // Update an existing user in the users model
+    /// let updated_user = json!({"id": 1, "name": "John Doe", "status": "active"});
+    /// db.update_model_data("users", updated_user)?;
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No model exists with the specified identifier
+    /// - The underlying merge operation fails (invalid data structures, etc.)
+    /// - The model's data format is incompatible with merging operations
+    pub fn update_model_data(&mut self, identifier: &str, new_data: Value) -> Result<(), String> {
+        // Find the model and update its data
+        let model_position = self
+            .models
+            .iter()
+            .position(|model| model.identifier == identifier)
+            .ok_or_else(|| format!("Model with identifier '{identifier}' not found"))?;
+
+        self.models[model_position].update_data(new_data)
     }
 }
 
@@ -486,6 +565,204 @@ impl Model {
         }
 
         self.data.body.clone()
+    }
+
+    /// Updates the model's data by merging new JSON data with existing data.
+    ///
+    /// This method performs intelligent merging of JSON data based on the structure
+    /// of both the existing data and the new data being merged. It handles various
+    /// scenarios including object-to-object merging, array operations, and nested
+    /// data structures with results fields.
+    ///
+    /// # Parameters
+    ///
+    /// * `new_data` - The new JSON value to merge with existing model data
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the merge operation completed successfully
+    /// * `Err(String)` - If the merge operation failed with a descriptive error message
+    ///
+    /// # Behavior
+    ///
+    /// The method handles different merge scenarios:
+    /// - **Object + Object**: Merges fields, with new data overriding existing fields
+    /// - **Array + Array**: Appends new items or merges based on ID field matching
+    /// - **Array + Object**: Adds the object as a new item to the array
+    /// - **Object + Array**: Replaces the object with the array
+    /// - **Results Field**: Properly handles nested data when `results_field` is configured
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::Model;
+    /// use serde_json::{json, Value};
+    ///
+    /// let mut model = Model::new(
+    ///     "users".to_string(),
+    ///     "id".to_string(),
+    ///     None,
+    ///     None,
+    ///     ConfigRouteResponse {
+    ///         status: Some(200),
+    ///         body: BodyResponse::Value(json!({"users": [{"id": 1, "name": "John"}]})),
+    ///     }
+    /// );
+    ///
+    /// // Add a new user to the array
+    /// let new_user = json!({"id": 2, "name": "Jane"});
+    /// model.update_data(new_user)?;
+    ///
+    /// // Update existing user data
+    /// let updated_user = json!({"id": 1, "name": "John Doe", "email": "john@example.com"});
+    /// model.update_data(updated_user)?;
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The model's data is not in a supported format for merging
+    /// - JSON serialization/deserialization fails during the merge process
+    /// - The merge operation would result in invalid data structure
+    pub fn update_data(&mut self, new_data: Value) -> Result<(), String> {
+        // Handle the results_field case first
+        if let Some(results_field) = &self.results_field {
+            if let BodyResponse::Value(Value::Object(map)) = &mut self.data.body {
+                let results_field_clone = results_field.clone();
+                if let Some(existing_results) = map.get_mut(&results_field_clone) {
+                    let id_field = self.id_field.clone();
+                    Self::merge_json_values_static(existing_results, new_data, &id_field)?;
+                    return Ok(());
+                }
+                // If results_field doesn't exist, create it with the new data
+                map.insert(results_field_clone, new_data);
+                return Ok(());
+            }
+        }
+
+        // Handle direct data update when no results_field is specified
+        match &mut self.data.body {
+            BodyResponse::Value(existing_body) => {
+                let id_field = self.id_field.clone();
+                Self::merge_json_values_static(existing_body, new_data, &id_field)?;
+                Ok(())
+            }
+            BodyResponse::String(_) | BodyResponse::Str(_) => {
+                Err("Cannot merge data with string-based responses".to_string())
+            }
+        }
+    }
+
+    /// Performs the actual JSON value merging logic.
+    ///
+    /// This internal helper method handles the core merging logic between two JSON values.
+    /// It implements intelligent merging strategies based on the types of both values
+    /// and supports array merging with ID-based item matching.
+    ///
+    /// # Parameters
+    ///
+    /// * `existing` - Mutable reference to the existing JSON value to be updated
+    /// * `new_value` - The new JSON value to merge into the existing value
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the merge operation completed successfully
+    /// * `Err(String)` - If the merge operation failed with a descriptive error message
+    ///
+    /// # Behavior
+    ///
+    /// - **Object + Object**: Recursively merges all fields from new_value into existing
+    /// - **Array + Array**: Appends all items from new_value to existing array
+    /// - **Array + Object**: Adds object as new item, or updates existing item if ID matches
+    /// - **Any + Any**: Replaces existing value with new_value for other type combinations
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use serde_json::{json, Value};
+    ///
+    /// let mut existing = json!({"name": "John", "age": 30});
+    /// let new_data = json!({"age": 31, "email": "john@example.com"});
+    ///
+    /// // After merge: {"name": "John", "age": 31, "email": "john@example.com"}
+    /// model.merge_json_values(&mut existing, new_data)?;
+    /// ```
+    fn merge_json_values_static(
+        existing: &mut Value,
+        new_value: Value,
+        id_field: &str,
+    ) -> Result<(), String> {
+        match (existing, new_value) {
+            // Object + Object: Merge all fields
+            (Value::Object(existing_obj), Value::Object(new_obj)) => {
+                for (key, value) in new_obj {
+                    if let Some(existing_value) = existing_obj.get_mut(&key) {
+                        // Recursively merge if both values are objects
+                        if existing_value.is_object() && value.is_object() {
+                            Self::merge_json_values_static(existing_value, value, id_field)?;
+                        } else {
+                            // Otherwise, replace the existing value
+                            *existing_value = value;
+                        }
+                    } else {
+                        // Insert new field
+                        existing_obj.insert(key, value);
+                    }
+                }
+                Ok(())
+            }
+
+            // Array + Array: Append all items from new array
+            (Value::Array(existing_arr), Value::Array(new_arr)) => {
+                for item in new_arr {
+                    existing_arr.push(item);
+                }
+                Ok(())
+            }
+
+            // Array + Object: Add object to array or update existing item with matching ID
+            (Value::Array(existing_arr), new_obj @ Value::Object(_)) => {
+                // Try to find existing item with matching ID field
+
+                if let Value::Object(new_obj_map) = &new_obj {
+                    if let Some(new_id) = new_obj_map.get(id_field) {
+                        // Look for existing item with same ID
+                        let mut found_existing = false;
+
+                        for existing_item in existing_arr.iter_mut() {
+                            if let Value::Object(existing_item_map) = existing_item {
+                                if let Some(existing_id) = existing_item_map.get(id_field) {
+                                    if existing_id == new_id {
+                                        // Merge with existing item
+                                        Self::merge_json_values_static(
+                                            existing_item,
+                                            new_obj.clone(),
+                                            id_field,
+                                        )?;
+                                        found_existing = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if !found_existing {
+                            // Add as new item
+                            existing_arr.push(new_obj);
+                        }
+                    } else {
+                        existing_arr.push(new_obj);
+                    }
+                }
+                Ok(())
+            }
+
+            // Object + Array or any other combination: Replace existing with new
+            (existing_val, new_val) => {
+                *existing_val = new_val;
+                Ok(())
+            }
+        }
     }
 
     /// Returns the HTTP status code associated with this model's response.

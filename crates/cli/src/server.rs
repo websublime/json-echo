@@ -42,10 +42,10 @@
 
 use axum::{
     Router,
-    extract::{MatchedPath, Path, Query, Request, State},
+    extract::{Json, MatchedPath, Path, Query, Request, State},
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use json_echo_core::{ConfigManager, Database};
 use serde_json::{Value, json};
@@ -167,24 +167,30 @@ pub async fn run_server(host: &str, port: &str, router: Router) -> Result<(), IO
 /// ```
 pub fn create_router(db: Database, config_manager: &ConfigManager) -> Router {
     info!("Getting models from config");
-    // First get the models before moving db
-    let models = db.get_models();
+    // First get the routes before moving db
+    let routes = db.get_routes();
     let config = &config_manager.config;
 
     // Create a router with all the routes (no state yet)
-    let router_with_routes = models.iter().fold(Router::new(), |router, model| {
-        let route_config = db.get_route(model.get_identifier());
+    let router_with_routes = routes.iter().fold(Router::new(), |router, route| {
+        let route_config = db.get_route(route, None);
 
         if route_config.is_none() {
+            info!("⚠︎ Route {} as no configuration associated", route);
             return router;
         }
 
-        let route = route_config.unwrap();
+        let route_method = route_config.unwrap().method.as_deref();
+        let route_path = extract_path(route);
 
-        match route.method.as_deref() {
+        match route_method {
             Some("GET") => {
-                info!("[GET] route defined: {}", model.get_identifier());
-                router.route(model.get_identifier(), get(get_handler))
+                info!("[GET] route defined: {}", route_path);
+                router.route(route_path, get(get_handler))
+            }
+            Some("POST") => {
+                info!("[POST] route defined: {}", route_path);
+                router.route(route_path, post(post_handler))
             }
             _ => router,
         }
@@ -333,8 +339,8 @@ async fn get_handler(
     }
 
     let route_path = route_match.unwrap().as_str();
-    let model = state.db.get_model(route_path);
-    let route = state.db.get_route(route_path);
+    let model = state.db.get_model(&format!("[GET] {route_path}"));
+    let route = state.db.get_route(route_path, Some(String::from("GET")));
 
     debug!("Model: {:?}", model);
     debug!("Route Config: {:?}", route);
@@ -357,17 +363,20 @@ async fn get_handler(
     debug!("Headers Config: {:?}", headers);
 
     if let Some(model) = model {
+        let http_status = model.get_status().unwrap_or(StatusCode::OK.as_u16());
+        let status = StatusCode::from_u16(http_status).unwrap_or(StatusCode::OK);
+
         if !params.is_empty() {
             let model_data = model.find_entry_by_hashmap(params);
 
             if let Some(data) = model_data {
-                return response(headers, StatusCode::OK, &data);
+                return response(headers, status, &data);
             }
         }
 
         let response_body = model.get_data();
 
-        return response(headers, StatusCode::OK, &response_body.as_value());
+        return response(headers, status, &response_body.as_value());
     }
 
     response(
@@ -375,6 +384,75 @@ async fn get_handler(
         StatusCode::NOT_FOUND,
         &json!({"error": "Model not found"}),
     )
+}
+
+/// HTTP POST request handler that processes incoming data and serves mock responses.
+///
+/// This handler processes POST requests by accepting JSON payloads and returning
+/// appropriate mock data based on route configuration. It supports payload
+/// validation and dynamic response generation.
+///
+/// # Parameters
+///
+/// * `Path(params)` - Path parameters extracted from the URL
+/// * `State(state)` - Shared application state containing the database
+/// * `payload` - Optional JSON payload from the request body
+/// * `req` - The complete HTTP request object
+///
+/// # Returns
+///
+/// An HTTP response containing:
+/// - JSON data from the model if found
+/// - Confirmation of data processing if successful
+/// - 404 error if route or model not found
+///
+/// # Behavior
+///
+/// The handler follows this logic:
+/// 1. Extracts the matched route path from request extensions
+/// 2. Looks up the corresponding model in the database
+/// 3. Processes the incoming JSON payload if provided
+/// 4. Returns appropriate mock response based on configuration
+/// 5. Returns error responses for missing routes/models
+///
+/// # Examples
+///
+/// ```
+/// POST /users -> Creates/processes user data
+/// POST /api/data -> Processes API data submission
+/// ```
+async fn post_handler(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<HashMap<String, String>>,
+    path: MatchedPath,
+    payload: Option<Json<Value>>,
+) -> impl IntoResponse {
+    info!("[POST] request received");
+
+    // Simple POST handler that accepts JSON payload and returns success
+    match payload {
+        Some(Json(data)) => {
+            info!("Received payload: {:?}", data);
+            (
+                StatusCode::CREATED,
+                axum::Json(json!({
+                    "status": "success",
+                    "message": "Data received successfully",
+                    "received_data": data
+                })),
+            )
+        }
+        None => {
+            info!("POST request received without payload");
+            (
+                StatusCode::OK,
+                axum::Json(json!({
+                    "status": "success",
+                    "message": "POST endpoint is working"
+                })),
+            )
+        }
+    }
 }
 
 fn response(headers: HeaderMap, status: StatusCode, data: &Value) -> Response {
@@ -410,4 +488,33 @@ fn response(headers: HeaderMap, status: StatusCode, data: &Value) -> Response {
     }
 
     (status, headers, axum::Json(data)).into_response()
+}
+
+fn merge(a: &mut Value, b: &Value) {
+    match (a, b) {
+        (Value::Object(a_map), Value::Object(b_map)) => {
+            // Merge objects by recursively merging their fields
+            for (k, v) in b_map {
+                // Must clone the key as it's owned by b_map
+                let entry = a_map.entry(k.clone()).or_insert(Value::Null);
+                merge(entry, v);
+            }
+        }
+        (Value::Array(a_vec), Value::Array(b_vec)) => {
+            // Merge arrays by appending items from b to a
+            a_vec.extend(b_vec.iter().cloned());
+        }
+        (a, b) => {
+            // For non-container types or mismatched types, replace with a clone
+            *a = b.clone();
+        }
+    }
+}
+
+fn extract_path(pattern: &str) -> &str {
+    if let Some(end) = pattern.find(']') {
+        let path = &pattern[end + 1..].trim();
+        return path;
+    }
+    pattern
 }

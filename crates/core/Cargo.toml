@@ -38,3 +38,8 @@ tokio = { workspace = true, features = [
 log = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["full", "test-util", "macros"] }
+futures = "0.3"
