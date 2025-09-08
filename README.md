@@ -18,7 +18,7 @@ A powerful and flexible mock API server for rapid prototyping, testing, and deve
 ### From Source
 
 ```bash
-git clone https://github.com/your-org/json-echo.git
+git clone https://github.com/websublime/json-echo
 cd json-echo
 cargo build --release
 ```
