@@ -1,4 +1,4 @@
-# JSON Echo
+# ECHO - JSON MOCK SERVER
 
 A powerful and flexible mock API server for rapid prototyping, testing, and development. JSON Echo allows you to create realistic API responses from simple JSON configuration files, making it perfect for frontend development, API testing, and service mocking.
 
