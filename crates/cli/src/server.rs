@@ -45,7 +45,7 @@ use axum::{
     extract::{Json, MatchedPath, Path, State},
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use json_echo_core::{ConfigManager, Database};
 use serde_json::{Value, json};
@@ -195,6 +195,10 @@ pub fn create_router(db: Database, config_manager: &ConfigManager) -> Router {
             Some("POST") => {
                 info!("[POST] route defined: {}", route_path);
                 router.route(route_path, post(post_handler))
+            }
+            Some("PUT") => {
+                info!("[PUT] route defined: {}", route_path);
+                router.route(route_path, put(put_handler))
             }
             _ => router,
         }
@@ -530,6 +534,21 @@ async fn post_handler(
     )
 }
 
+async fn put_handler(
+    State(_state): State<Arc<AppState>>,
+    Path(_params): Path<HashMap<String, String>>,
+    uri_path: Uri,
+    _path: MatchedPath,
+    _payload: Option<Json<Value>>,
+) -> Response {
+    info!("[PUT] request called: {}", uri_path.path());
+
+    response(
+        HeaderMap::new(),
+        StatusCode::NOT_FOUND,
+        &json!({"error": "Model not found"}),
+    )
+}
 /// Creates an HTTP response with the appropriate content type and format.
 ///
 /// This function generates HTTP responses by examining the provided headers
