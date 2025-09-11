@@ -421,6 +421,7 @@ async fn get_handler(
 /// POST /users -> Creates/processes user data
 /// POST /api/data -> Processes API data submission
 /// ```
+#[allow(clippy::redundant_else)]
 async fn post_handler(
     State(state): State<Arc<AppState>>,
     Path(params): Path<HashMap<String, String>>,
@@ -447,6 +448,7 @@ async fn post_handler(
 
     let state_reader = state_reader.unwrap();
     let model = state_reader.get_model(&format!("[GET] {route_path}"));
+    //.or_else(|| state_reader.get_model(&format!("[POST] {route_path}")));
     let route_config = state_reader.get_route(route_path, Some(String::from("GET")));
 
     debug!("Route Config: {:?}", route_config);
@@ -504,21 +506,29 @@ async fn post_handler(
             if writer_result.is_ok() {
                 info!("✔︎ GET Model data updated: {get_identifier}");
             }
-        }
 
-        // Get the updated data for response
-        let state_reader = state.db.read();
-        if let Ok(state_reader) = state_reader {
-            if let Some(model) = state_reader.get_model(&route_identifier) {
-                if !params.is_empty() {
-                    let model_data = model.find_entry_by_hashmap(params);
-                    if let Some(data) = model_data {
-                        return response(headers, status, &data);
+            // Get the updated data for response
+            let state_reader = state.db.read();
+            if let Ok(state_reader) = state_reader {
+                if let Some(model) = state_reader.get_model(&route_identifier) {
+                    if !params.is_empty() {
+                        let model_data = model.find_entry_by_hashmap(params);
+                        if let Some(data) = model_data {
+                            return response(headers, status, &data);
+                        }
                     }
+
+                    let response_body = model.get_data();
+                    return response(headers, status, &response_body.as_value());
                 }
 
-                let response_body = model.get_data();
-                return response(headers, status, &response_body.as_value());
+                return response(headers, status, &json!({}));
+            } else {
+                return response(
+                    headers,
+                    StatusCode::NOT_FOUND,
+                    &json!({"error": "Cannot read model data"}),
+                );
             }
         }
     }
