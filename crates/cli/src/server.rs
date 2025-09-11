@@ -421,6 +421,7 @@ async fn get_handler(
 /// POST /users -> Creates/processes user data
 /// POST /api/data -> Processes API data submission
 /// ```
+#[allow(clippy::redundant_else)]
 async fn post_handler(
     State(state): State<Arc<AppState>>,
     Path(params): Path<HashMap<String, String>>,
@@ -435,33 +436,50 @@ async fn post_handler(
     let route_identifier = format!("[POST] {route_path}");
 
     // First, get the route configuration and model info without holding the lock
-    let state_reader = state.db.read();
+    let (model_exists, route_headers, model_status) = {
+        let state_reader = match state.db.read() {
+            Ok(reader) => reader,
+            Err(_) => {
+                return response(
+                    HeaderMap::new(),
+                    StatusCode::EXPECTATION_FAILED,
+                    &json!({"error": "Unable to read database"}),
+                );
+            }
+        };
 
-    if state_reader.is_err() {
+        let model = state_reader
+            .get_model(&format!("[GET] {route_path}"))
+            .or_else(|| state_reader.get_model(&format!("[POST] {route_path}")));
+        let route_config = state_reader.get_route(route_path, Some(String::from("GET")));
+
+        debug!("Route Config: {:?}", route_config);
+        debug!("Payload: {:?}", body_payload);
+
+        let model_exists = model.is_some();
+        let route_headers = route_config.and_then(|rc| rc.headers.clone());
+        let model_status = model.map(|m| m.get_status().unwrap_or(StatusCode::OK.as_u16()));
+
+        (model_exists, route_headers, model_status)
+    }; // Read lock liberado aqui
+
+    if !model_exists {
         return response(
             HeaderMap::new(),
-            StatusCode::EXPECTATION_FAILED,
-            &json!({"error": "Unable to read database"}),
+            StatusCode::NOT_FOUND,
+            &json!({"error": "Model not found"}),
         );
     }
 
-    let state_reader = state_reader.unwrap();
-    let model = state_reader.get_model(&format!("[GET] {route_path}"));
-    let route_config = state_reader.get_route(route_path, Some(String::from("GET")));
-
-    debug!("Route Config: {:?}", route_config);
-    debug!("Payload: {:?}", body_payload);
-
+    // Configurar headers
     let mut headers = HeaderMap::new();
     headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
-    if let Some(route) = &route_config {
-        if let Some(route_headers) = &route.headers {
-            for (key, value) in route_headers {
-                if let Ok(header_name) = key.parse::<HeaderName>() {
-                    if let Ok(header_value) = value.parse() {
-                        headers.insert(header_name, header_value);
-                    }
+    if let Some(route_headers) = route_headers {
+        for (key, value) in route_headers {
+            if let Ok(header_name) = key.parse::<HeaderName>() {
+                if let Ok(header_value) = value.parse() {
+                    headers.insert(header_name, header_value);
                 }
             }
         }
@@ -469,58 +487,61 @@ async fn post_handler(
 
     debug!("Headers Config: {:?}", headers);
 
-    if let Some(model) = model {
-        let http_status = model.get_status().unwrap_or(StatusCode::OK.as_u16());
-        let status = StatusCode::from_u16(http_status).unwrap_or(StatusCode::OK);
+    let http_status = model_status.unwrap_or(StatusCode::OK.as_u16());
+    let status = StatusCode::from_u16(http_status).unwrap_or(StatusCode::OK);
+    let payload_data = body_payload.0;
 
-        let payload_data = body_payload.0;
-
-        // Update the model data
-        {
-            let state_writer = state.db.write();
-            if state_writer.is_err() {
+    // Phase 2: Update data (write lock)
+    {
+        let mut state_writer = match state.db.write() {
+            Ok(writer) => writer,
+            Err(_) => {
                 return response(
                     HeaderMap::new(),
                     StatusCode::EXPECTATION_FAILED,
                     &json!({"error": "Unable to write to database"}),
                 );
             }
+        };
 
-            let mut state_writer = state_writer.unwrap();
-            let writer_result =
-                state_writer.update_model_data(&route_identifier, payload_data.clone());
-
-            if writer_result.is_err() {
-                info!("⚠︎ Failed to update model data: {route_identifier}");
-                debug!("Update model error {:?}", writer_result.err());
-            } else {
+        match state_writer.update_model_data(&route_identifier, payload_data.clone()) {
+            Ok(_) => {
                 info!("✔︎ Model data updated: {route_identifier}");
-            }
 
-            // Synchronize with GET model if it exists
-            let get_identifier = format!("[GET] {route_path}");
-            let writer_result = state_writer.update_model_data(&get_identifier, payload_data);
-
-            if writer_result.is_ok() {
-                info!("✔︎ GET Model data updated: {get_identifier}");
-            }
-        }
-
-        // Get the updated data for response
-        let state_reader = state.db.read();
-        if let Ok(state_reader) = state_reader {
-            if let Some(model) = state_reader.get_model(&route_identifier) {
-                if !params.is_empty() {
-                    let model_data = model.find_entry_by_hashmap(params);
-                    if let Some(data) = model_data {
-                        return response(headers, status, &data);
-                    }
+                // Sync with GET model
+                let get_identifier = format!("[GET] {route_path}");
+                if let Ok(_) = state_writer.update_model_data(&get_identifier, payload_data) {
+                    info!("✔︎ GET Model data updated: {get_identifier}");
                 }
-
-                let response_body = model.get_data();
-                return response(headers, status, &response_body.as_value());
+            }
+            Err(e) => {
+                info!("⚠︎ Failed to update model data: {route_identifier}");
+                debug!("Update model error: {:?}", e);
             }
         }
+    } // Write lock droped
+
+    // Phase 3: Get response data (new read lock)
+    let state_reader = match state.db.read() {
+        Ok(reader) => reader,
+        Err(_) => {
+            return response(
+                headers,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &json!({"error": "Unable to read updated data"}),
+            );
+        }
+    };
+
+    if let Some(model) = state_reader.get_model(&route_identifier) {
+        if !params.is_empty() {
+            if let Some(data) = model.find_entry_by_hashmap(params) {
+                return response(headers, status, &data);
+            }
+        }
+
+        let response_body = model.get_data();
+        return response(headers, status, &response_body.as_value());
     }
 
     response(
