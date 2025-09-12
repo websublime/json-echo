@@ -45,7 +45,7 @@ use axum::{
     extract::{Json, MatchedPath, Path, State},
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{get, patch, post, put},
 };
 use json_echo_core::{ConfigManager, Database};
 use serde_json::{Value, json};
@@ -202,7 +202,7 @@ pub fn create_router(db: Database, config_manager: &ConfigManager) -> Router {
             }
             Some("PATCH") => {
                 info!("[PATCH] route defined: {}", route_path);
-                router.route(route_path, put(add_update_handler))
+                router.route(route_path, patch(add_update_handler))
             }
             _ => router,
         }
