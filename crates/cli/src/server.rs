@@ -45,7 +45,7 @@ use axum::{
     extract::{Json, MatchedPath, Path, State},
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use json_echo_core::{ConfigManager, Database};
 use serde_json::{Value, json};
@@ -194,7 +194,11 @@ pub fn create_router(db: Database, config_manager: &ConfigManager) -> Router {
             }
             Some("POST") => {
                 info!("[POST] route defined: {}", route_path);
-                router.route(route_path, post(post_handler))
+                router.route(route_path, post(add_update_handler))
+            }
+            Some("PUT") => {
+                info!("[PUT] route defined: {}", route_path);
+                router.route(route_path, put(add_update_handler))
             }
             _ => router,
         }
@@ -421,19 +425,24 @@ async fn get_handler(
 /// POST /users -> Creates/processes user data
 /// POST /api/data -> Processes API data submission
 /// ```
-#[allow(clippy::redundant_else)]
-async fn post_handler(
+#[allow(clippy::manual_let_else)]
+#[allow(clippy::ignored_unit_patterns)]
+#[allow(clippy::too_many_lines)]
+async fn add_update_handler(
     State(state): State<Arc<AppState>>,
     Path(params): Path<HashMap<String, String>>,
+    method: Method,
     uri_path: Uri,
     path: MatchedPath,
     payload: Option<Json<Value>>,
 ) -> Response {
-    info!("[POST] request called: {}", uri_path.path());
+    let http_method = &method.as_str().to_uppercase();
+
+    info!("[{}] request called: {}", http_method, uri_path.path());
 
     let body_payload = payload.unwrap_or(axum::Json(json!({})));
     let route_path = path.as_str();
-    let route_identifier = format!("[POST] {route_path}");
+    let route_identifier = format!("[{http_method}] {route_path}");
 
     // First, get the route configuration and model info without holding the lock
     let (model_exists, route_headers, model_status) = {
@@ -450,8 +459,10 @@ async fn post_handler(
 
         let model = state_reader
             .get_model(&format!("[GET] {route_path}"))
-            .or_else(|| state_reader.get_model(&format!("[POST] {route_path}")));
-        let route_config = state_reader.get_route(route_path, Some(String::from("GET")));
+            .or_else(|| state_reader.get_model(&route_identifier));
+        let route_config = state_reader
+            .get_route(route_path, Some(String::from("GET")))
+            .or_else(|| state_reader.get_route(&route_identifier, None));
 
         debug!("Route Config: {:?}", route_config);
         debug!("Payload: {:?}", body_payload);
@@ -461,7 +472,7 @@ async fn post_handler(
         let model_status = model.map(|m| m.get_status().unwrap_or(StatusCode::OK.as_u16()));
 
         (model_exists, route_headers, model_status)
-    }; // Read lock liberado aqui
+    }; // Read lock drop
 
     if !model_exists {
         return response(
@@ -471,7 +482,7 @@ async fn post_handler(
         );
     }
 
-    // Configurar headers
+    // Configure headers
     let mut headers = HeaderMap::new();
     headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
@@ -510,7 +521,10 @@ async fn post_handler(
 
                 // Sync with GET model
                 let get_identifier = format!("[GET] {route_path}");
-                if let Ok(_) = state_writer.update_model_data(&get_identifier, payload_data) {
+                if state_writer
+                    .update_model_data(&get_identifier, payload_data)
+                    .is_ok()
+                {
                     info!("✔︎ GET Model data updated: {get_identifier}");
                 }
             }
@@ -519,7 +533,7 @@ async fn post_handler(
                 debug!("Update model error: {:?}", e);
             }
         }
-    } // Write lock droped
+    } // Write lock dropped
 
     // Phase 3: Get response data (new read lock)
     let state_reader = match state.db.read() {
