@@ -200,6 +200,10 @@ pub fn create_router(db: Database, config_manager: &ConfigManager) -> Router {
                 info!("[PUT] route defined: {}", route_path);
                 router.route(route_path, put(add_update_handler))
             }
+            Some("PATCH") => {
+                info!("[PATCH] route defined: {}", route_path);
+                router.route(route_path, put(add_update_handler))
+            }
             _ => router,
         }
     });
