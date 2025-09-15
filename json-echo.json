@@ -58,6 +58,31 @@
         "Content-Type": "application/json"
       },
       "response": "products-response.json"
+    },
+    "[DELETE] /api/v1/posts/{id}": {
+      "method": "DELETE",
+      "description": "Delete post by ID",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "status": 204,
+        "body": {}
+      }
+    },
+    "[DELETE] /api/v1/products/{code}": {
+      "method": "DELETE",
+      "id_field": "code",
+      "description": "Delete product by code",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "message": "Product deleted successfully"
+        }
+      }
     }
   }
 }

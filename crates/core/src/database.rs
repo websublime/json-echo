@@ -49,6 +49,18 @@ use std::collections::HashMap;
 
 use serde_json::{Map, Value, json};
 
+/// Internal enum for tracking what type of deletion operation to perform.
+///
+/// This enum helps distinguish between deleting keys from an object structure
+/// versus removing elements from an array structure, avoiding type conflicts
+/// during the deletion planning phase.
+enum DeletionTarget {
+    /// Delete specific keys from an object
+    ObjectKeys(Vec<String>),
+    /// Remove elements at specific indices from an array
+    ArrayIndices(Vec<usize>),
+}
+
 use crate::{ConfigRoute, ConfigRouteResponse, config::BodyResponse};
 
 /// An in-memory database that manages route configurations and their associated models.
@@ -485,6 +497,70 @@ impl Database {
             .ok_or_else(|| format!("Model with identifier '{identifier}' not found"))?;
 
         self.models[model_position].update_data(new_data)
+    }
+
+    /// Deletes a specific entry from a model's data based on the provided parameters.
+    ///
+    /// This method locates a model by its identifier and removes an entry that matches
+    /// the provided parameter map. The deletion operation works with both object and
+    /// array-based model data structures.
+    ///
+    /// # Parameters
+    ///
+    /// * `identifier` - The string identifier of the model to modify
+    /// * `params` - A HashMap containing key-value pairs to match against entries
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - If an entry was found and successfully deleted
+    /// * `Ok(false)` - If no matching entry was found to delete
+    /// * `Err(String)` - If the model was not found or the operation failed
+    ///
+    /// # Behavior
+    ///
+    /// - Searches for the model with the specified identifier
+    /// - Calls the model's delete_entry method to perform the deletion
+    /// - Works with both array and object data structures
+    /// - Matches entries based on ID field or exact value matches
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::Database;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut db = Database::new();
+    /// // Assuming database has been populated with a "users" model
+    ///
+    /// let mut params = HashMap::new();
+    /// params.insert("id".to_string(), "123".to_string());
+    ///
+    /// match db.delete_model_entry("users", &params) {
+    ///     Ok(true) => println!("Entry deleted successfully"),
+    ///     Ok(false) => println!("No matching entry found"),
+    ///     Err(e) => println!("Error: {}", e),
+    /// }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - No model exists with the specified identifier
+    /// - The underlying delete operation fails
+    /// - The model's data format is incompatible with deletion operations
+    pub fn delete_model_entry(
+        &mut self,
+        identifier: &str,
+        params: &HashMap<String, String>,
+    ) -> Result<bool, String> {
+        // Find the model and delete the entry
+        let model_position = self
+            .models
+            .iter()
+            .position(|model| model.identifier == identifier)
+            .ok_or_else(|| format!("Model with identifier '{identifier}' not found"))?;
+
+        self.models[model_position].delete_entry(params)
     }
 }
 
@@ -985,5 +1061,150 @@ impl Model {
         }
 
         None
+    }
+
+    /// Deletes a specific entry from the model's data based on the provided parameters.
+    ///
+    /// This method removes an entry that matches the provided parameter map from the
+    /// model's data structure. It supports both object and array-based data and uses
+    /// the same matching logic as `find_entry_by_hashmap` to locate entries.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - A HashMap containing key-value pairs to match against entries
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(true)` - If an entry was found and successfully deleted
+    /// * `Ok(false)` - If no matching entry was found to delete
+    /// * `Err(String)` - If the deletion operation failed
+    ///
+    /// # Behavior
+    ///
+    /// The method follows this logic:
+    /// 1. Checks if the model data is an array or object structure
+    /// 2. For arrays: searches for matching entries and removes them
+    /// 3. For objects: searches for matching key-value pairs and removes them
+    /// 4. Uses ID field matching and exact value matching like find operations
+    /// 5. Modifies the model's data in place
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use json_echo_core::Model;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut model = Model::new("users".to_string(), "id".to_string(), None, None, response_data);
+    ///
+    /// let mut params = HashMap::new();
+    /// params.insert("id".to_string(), "123".to_string());
+    ///
+    /// match model.delete_entry(&params) {
+    ///     Ok(true) => println!("Entry deleted successfully"),
+    ///     Ok(false) => println!("No matching entry found"),
+    ///     Err(e) => println!("Error: {}", e),
+    /// }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The model data structure is corrupted or incompatible
+    /// - The deletion operation encounters unexpected data types
+    /// - Memory allocation fails during the operation
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn delete_entry(&mut self, params: &HashMap<String, String>) -> Result<bool, String> {
+        let id_field = self.get_id_field();
+
+        // First, identify what needs to be deleted without borrowing mutably
+        let deletion_info = match &self.data.body {
+            BodyResponse::Value(Value::Object(obj)) => {
+                let mut keys_to_remove = Vec::new();
+
+                for (param_key, param_value) in params {
+                    let clean_key = param_key.replace(':', "");
+
+                    if let Some(val) = obj.get(&clean_key) {
+                        if (param_key.contains(id_field) && val.to_string().as_str() == param_value)
+                            || *val == json!(param_value)
+                        {
+                            keys_to_remove.push(clean_key);
+                        }
+                    }
+                }
+
+                if keys_to_remove.is_empty() {
+                    None
+                } else {
+                    Some(DeletionTarget::ObjectKeys(keys_to_remove))
+                }
+            }
+            BodyResponse::Value(Value::Array(arr)) => {
+                let mut indices_to_remove = Vec::new();
+
+                for (index, item) in arr.iter().enumerate() {
+                    if let Value::Object(obj_item) = item {
+                        let mut matches = false;
+
+                        for (param_key, param_value) in params {
+                            let clean_key = param_key.replace(':', "");
+
+                            if let Some(val) = obj_item.get(&clean_key) {
+                                if (param_key.contains(id_field)
+                                    && val.to_string().as_str() == param_value)
+                                    || *val == json!(param_value)
+                                {
+                                    matches = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if matches {
+                            indices_to_remove.push(index);
+                        }
+                    }
+                }
+
+                if indices_to_remove.is_empty() {
+                    None
+                } else {
+                    Some(DeletionTarget::ArrayIndices(indices_to_remove))
+                }
+            }
+            BodyResponse::Value(_) => {
+                return Err(
+                    "Model data is not in a deletable format (must be object or array)".to_string(),
+                );
+            }
+            _ => {
+                return Err("Model data is not in a compatible format for deletion".to_string());
+            }
+        };
+
+        // Now perform the deletion with mutable access
+        if let Some(target) = deletion_info {
+            match (&mut self.data.body, target) {
+                (BodyResponse::Value(Value::Object(obj)), DeletionTarget::ObjectKeys(keys)) => {
+                    for key in &keys {
+                        obj.remove(key);
+                    }
+                    Ok(true)
+                }
+                (
+                    BodyResponse::Value(Value::Array(arr)),
+                    DeletionTarget::ArrayIndices(mut indices),
+                ) => {
+                    indices.reverse(); // Remove in reverse order to maintain valid indices
+                    for index in indices {
+                        arr.remove(index);
+                    }
+                    Ok(true)
+                }
+                _ => Err("Mismatched data structure and deletion target".to_string()),
+            }
+        } else {
+            Ok(false)
+        }
     }
 }

@@ -45,7 +45,7 @@ use axum::{
     extract::{Json, MatchedPath, Path, State},
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, Uri},
     response::{IntoResponse, Response},
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use json_echo_core::{ConfigManager, Database};
 use serde_json::{Value, json};
@@ -204,6 +204,10 @@ pub fn create_router(db: Database, config_manager: &ConfigManager) -> Router {
                 info!("[PATCH] route defined: {}", route_path);
                 router.route(route_path, patch(add_update_handler))
             }
+            Some("DELETE") => {
+                info!("[DELETE] route defined: {}", route_path);
+                router.route(route_path, delete(delete_handler))
+            }
             _ => router,
         }
     });
@@ -216,6 +220,7 @@ pub fn create_router(db: Database, config_manager: &ConfigManager) -> Router {
             Method::PATCH,
             Method::DELETE,
             Method::OPTIONS,
+            Method::HEAD,
         ])
         .allow_headers(Any)
         .allow_origin(Any)
@@ -547,6 +552,175 @@ async fn add_update_handler(
                 headers,
                 StatusCode::INTERNAL_SERVER_ERROR,
                 &json!({"error": "Unable to read updated data"}),
+            );
+        }
+    };
+
+    if let Some(model) = state_reader.get_model(&route_identifier) {
+        if !params.is_empty() {
+            if let Some(data) = model.find_entry_by_hashmap(params) {
+                return response(headers, status, &data);
+            }
+        }
+
+        let response_body = model.get_data();
+        return response(headers, status, &response_body.as_value());
+    }
+
+    response(
+        headers,
+        StatusCode::NOT_FOUND,
+        &json!({"error": "Model not found"}),
+    )
+}
+
+/// HTTP DELETE request handler that removes data based on route configuration.
+///
+/// This handler processes DELETE requests by locating specific entries in the
+/// database using path parameters and removing them. It supports both individual
+/// entry deletion and bulk operations based on the route configuration.
+///
+/// # Parameters
+///
+/// * `Path(params)` - Path parameters extracted from the URL for identifying entries
+/// * `State(state)` - Shared application state containing the database
+/// * `uri_path` - The full URI of the request for logging
+/// * `path` - The matched route path for database lookups
+///
+/// # Returns
+///
+/// An HTTP response containing:
+/// - 204 No Content if deletion was successful
+/// - 200 OK with confirmation JSON if configured to return content
+/// - 404 Not Found if the specified entry or route doesn't exist
+/// - 500 Internal Server Error if database operations fail
+///
+/// # Behavior
+///
+/// The handler follows this logic:
+/// 1. Extracts the matched route path from the request
+/// 2. Looks up the corresponding model in the database
+/// 3. If path parameters are provided, searches for and deletes the specific entry
+/// 4. If no parameters, potentially clears all data (based on configuration)
+/// 5. Returns appropriate status codes and headers based on the operation result
+///
+/// # Examples
+///
+/// ```
+/// DELETE /users/123 -> Removes user with ID 123, returns 204 No Content
+/// DELETE /api/data -> May clear all data or return 404 based on configuration
+/// ```
+#[allow(clippy::manual_let_else)]
+#[allow(clippy::ignored_unit_patterns)]
+#[allow(clippy::too_many_lines)]
+async fn delete_handler(
+    State(state): State<Arc<AppState>>,
+    Path(params): Path<HashMap<String, String>>,
+    uri_path: Uri,
+    path: MatchedPath,
+) -> Response {
+    info!("[DELETE] request called: {}", uri_path.path());
+
+    let route_path = path.as_str();
+    let route_identifier = format!("[DELETE] {route_path}");
+
+    // First, get the route configuration and model info without holding the lock
+    let (model_exists, route_headers, model_status) = {
+        let state_reader = match state.db.read() {
+            Ok(reader) => reader,
+            Err(_) => {
+                return response(
+                    HeaderMap::new(),
+                    StatusCode::EXPECTATION_FAILED,
+                    &json!({"error": "Unable to read database"}),
+                );
+            }
+        };
+
+        let model = state_reader
+            .get_model(&format!("[GET] {route_path}"))
+            .or_else(|| state_reader.get_model(&route_identifier));
+        let route_config = state_reader
+            .get_route(route_path, Some(String::from("GET")))
+            .or_else(|| state_reader.get_route(&route_identifier, None));
+
+        debug!("Route Config: {:?}", route_config);
+
+        let model_exists = model.is_some();
+        let route_headers = route_config.and_then(|rc| rc.headers.clone());
+        let model_status = model.map(|m| m.get_status().unwrap_or(StatusCode::OK.as_u16()));
+
+        (model_exists, route_headers, model_status)
+    }; // Read lock drop
+
+    if !model_exists {
+        return response(
+            HeaderMap::new(),
+            StatusCode::NOT_FOUND,
+            &json!({"error": "Model not found"}),
+        );
+    }
+
+    // Configure headers
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+
+    if let Some(route_headers) = route_headers {
+        for (key, value) in route_headers {
+            if let Ok(header_name) = key.parse::<HeaderName>() {
+                if let Ok(header_value) = value.parse() {
+                    headers.insert(header_name, header_value);
+                }
+            }
+        }
+    }
+
+    debug!("Headers Config: {:?}", headers);
+
+    let http_status = model_status.unwrap_or(StatusCode::NO_CONTENT.as_u16());
+    let status = StatusCode::from_u16(http_status).unwrap_or(StatusCode::NO_CONTENT);
+
+    // Phase 2: Perform deletion operation (write lock)
+    {
+        let mut state_writer = match state.db.write() {
+            Ok(writer) => writer,
+            Err(_) => {
+                return response(
+                    HeaderMap::new(),
+                    StatusCode::EXPECTATION_FAILED,
+                    &json!({"error": "Unable to write to database"}),
+                );
+            }
+        };
+
+        match state_writer.delete_model_entry(&route_identifier, &params) {
+            Ok(_) => {
+                info!("✔︎ Model data deleted: {route_identifier}");
+
+                // Sync with GET model
+                let get_identifier = format!("[GET] {route_path}");
+                if state_writer
+                    .delete_model_entry(&route_identifier, &params)
+                    .is_ok()
+                {
+                    info!("✔︎ GET Model data deleted: {get_identifier}");
+                }
+            }
+            Err(e) => {
+                info!("⚠︎ Failed to delete model data: {route_identifier}");
+                debug!("Delete model error: {:?}", e);
+            }
+        }
+    } // Write lock dropped
+
+    // Phase 3: Get response data (new read lock)
+    let state_reader = match state.db.read() {
+        Ok(reader) => reader,
+        Err(_) => {
+            return response(
+                headers,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &json!({"error": "Unable to read deleted data"}),
             );
         }
     };
